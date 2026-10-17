@@ -52,6 +52,7 @@ const short = (name: string) => {
 const BAR = 4
 const PIES = ['○', '◔', '◑', '◕', '●']
 const ROWS = 4
+const MINUTE = 60000
 
 const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n)))
 
@@ -76,7 +77,7 @@ const span = (mins: number) => {
 }
 
 const until = (iso: string | undefined, now: number) =>
-  iso ? span(Math.max(0, Math.round((Date.parse(iso) - now) / 60000))) : ''
+  iso ? span(Math.max(0, Math.round((Date.parse(iso) - now) / MINUTE))) : ''
 
 const tokens = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
@@ -133,6 +134,11 @@ export const register: Register = (on, options) => {
   // `session.start`, and a change of the plugin option reloads the module.
   let lang: Lang | undefined
 
+  // The countdowns are worked out when the band is drawn, and a repaint reuses
+  // the drawing: redraw it each minute so they move with no new measurement.
+  // Started once, with the first measurement, when the band has data to draw.
+  let ticking = false
+
   on('session.start', async ($, e, next) => {
     const u = await $.session.usage()
     await update($, usage, prev => pick(u.rateLimits, u.context.percent, u.cost?.usd, keep(prev)))
@@ -146,6 +152,11 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     const detail = moved ? await details(() => $.session.usage({ breakdown: 'summary' }), now) : undefined
     await update($, usage, prev => pick(e.rateLimits, e.context.percent, e.cost?.usd, detail ?? keep(prev)))
+
+    if (!ticking) {
+      ticking = true
+      $.clock.every(MINUTE, () => $.ui.invalidate('ui.render'))
+    }
 
     return next(e)
   })
@@ -230,7 +241,7 @@ export const register: Register = (on, options) => {
 
     if (cache) {
       const ttl = options.cacheTtl === '5m' ? 5 : 60
-      const left = Math.round((cache.at + ttl * 60000 - now) / 60000)
+      const left = Math.round((cache.at + ttl * MINUTE - now) / MINUTE)
       const color = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
       parts.push(
         tip(
