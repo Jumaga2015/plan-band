@@ -1,13 +1,15 @@
 # plan-band
 
-A Claude Code plugin that shows above the prompt what is left of the plan limits (5-hour and weekly), the context use and the session cost.
+A Claude Code plugin that shows above the prompt what is left of the plan limits (5-hour and weekly), the context use, the prompt cache and the session cost.
 
 ```
-◕ 5h ▰▰▰▱ 72% →2h14m  ·  ◑ Week ▰▰▱▱ 48% →3d6h  ·  ctx ▰▱▱▱ 23%  ·  $0.42
+◕ 5h ▰▰▰▱ 72% →2h14m  ·  ◑ Week ▰▰▱▱ 48% →3d6h  ·  $0.42  ·  ctx ▰▱▱▱ 23%  ·  cache 95% →52m
 ```
 
 - Each limit shows the **free** percentage and the time until it resets (`→`). The color goes from green to yellow to red as less is left.
 - `ctx` shows the **used** percentage of the context window.
+- `cache` shows the share of the last response's prompt that the cache served, and the time until the cache expires (`expired` after that). The time is an estimate counted from the last response; see the `cacheTtl` option.
+- Pointing at `ctx` shows a tooltip with the biggest rows of the context (as `/context` lists them, in % of the window); pointing at `cache`, one with the cache use of the last response (read, written and new tokens). They need a pointer: they do not show where the surface has none.
 - The band updates on each measurement of the session, and does not show until there is data.
 - In the classic Windows console (`cmd`), choose a font that has the shapes, such as Cascadia Mono: the classic console does not take missing characters from other fonts, and Consolas does not have `◔ ◑ ◕ ▰ ▱`. Windows Terminal and VS Code show them with any font.
 
@@ -35,12 +37,18 @@ The band is in English, Spanish, French, German, Portuguese or Italian. By defau
 
 To choose a language for the band only, set the plugin option `language` to `en`, `es`, `fr`, `de`, `pt` or `it` in `/config`.
 
+## Cache lifetime
+
+The prompt cache lasts 1 hour or 5 minutes after a response, and Claude Code does not report which. The plugin option `cacheTtl` (`1h` by default, or `5m`) sets the one the countdown uses; change it in `/config`.
+
 ## Español
 
-Plugin para Claude Code que muestra encima del prompt lo que queda de los límites del plan (5 horas y semanal), el uso del contexto y el coste de la sesión.
+Plugin para Claude Code que muestra encima del prompt lo que queda de los límites del plan (5 horas y semanal), el uso del contexto, la caché del prompt y el coste de la sesión.
 
 - Instalación: `/plugin install plan-band --marketplace Jumaga2015/plan-band` en el prompt de Claude Code (terminal).
 - Idioma: por defecto, la banda usa el idioma del ajuste `language` de Claude Code. Para elegir otro, cambie la opción `language` del plugin en `/config` (`en`, `es`, `fr`, `de`, `pt` o `it`).
+- Caché: `caché 95% →52m` es el porcentaje del prompt de la última respuesta servido por la caché y el tiempo estimado hasta que caduque. La opción `cacheTtl` (`1h` o `5m`) fija la duración que se usa para la cuenta atrás.
+- Detalle: al pasar el puntero por `ctx` aparece un tooltip con las filas mayores del contexto; por `caché`, otro con el uso de la caché de la última respuesta.
 
 ## License
 

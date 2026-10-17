@@ -1,6 +1,6 @@
 {
   "name": "plan-band",
   "owner": { "name": "Jumaga2015" },
-  "description": "A Claude Code band with the plan limits, the context use and the session cost.",
+  "description": "A Claude Code band with the plan limits, the context use, the prompt cache and the session cost.",
   "plugins": [{ "name": "plan-band", "source": "./" }]
 }
