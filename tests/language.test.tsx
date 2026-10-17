@@ -1,0 +1,67 @@
+import { expect, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
+import type { On, PluginOptions, SessionUsage, Settings } from 'claude-code'
+
+const NOW = Date.parse('2026-10-17T08:00:00Z')
+
+const USAGE: SessionUsage = {
+  startedAt: NOW,
+  context: { window: 200000, percent: 23 },
+  rateLimits: [
+    { kind: 'five_hour', percentUsed: 28, resetsAt: '2026-10-17T10:14:00Z' },
+    { kind: 'seven_day', percentUsed: 52, resetsAt: '2026-10-20T14:00:00Z' }
+  ],
+  cost: { usd: 0.42 }
+}
+
+const SURFACES = ['terminal', 'desktop'] as const
+
+// Draws the band once on each surface, with the Claude Code `language` setting given.
+const bands = async ($: Engine, on: On, language: string | undefined) => {
+  on('settings.read', async () => ({ value: { language } as Settings }))
+  on('session.usage', async () => ({ value: USAGE }))
+  on('clock.now', async () => ({ value: NOW }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: 'C:/work', surface: 'terminal', isInteractive: true })
+
+  const texts: string[] = []
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({
+      plugin: 'plan-band',
+      surface,
+      component: 'AbovePrompt',
+      props: {
+        hasSurvey: false,
+        isWorking: false,
+        maxRows: 40,
+        bodyColumns: 120,
+        scroll: { offset: 0, bodyRows: 40 },
+        view: {}
+      }
+    })
+    texts.push(JSON.stringify(await ui.drawn()))
+  }
+  return texts
+}
+
+// Counts the word as a whole string of the drawn tree.
+const count = (text: string, word: string) => text.split(JSON.stringify(word)).length - 1
+
+const cases: [string, PluginOptions | undefined, string | undefined, string][] = [
+  ['auto follows the language setting', undefined, 'es', 'Semana'],
+  ['auto reads a language name with accents', undefined, 'Español', 'Semana'],
+  ['auto is English without a language setting', undefined, undefined, 'Week'],
+  ['auto is English for an unsupported language', undefined, 'japanese', 'Week'],
+  ['the plugin option wins over the setting', { language: 'en' }, 'es', 'Week'],
+  ['the plugin option takes a region code', { language: 'fr-FR' }, 'es', 'Semaine']
+]
+
+for (const [name, options, setting, week] of cases) {
+  test(name, options ? { options } : {}, async ($, on) => {
+    for (const text of await bands($, on, setting)) {
+      expect(count(text, week)).toBe(1)
+      expect(count(text, '5h')).toBe(1)
+    }
+  })
+}

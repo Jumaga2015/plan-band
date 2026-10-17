@@ -1,11 +1,37 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { Register, RenderChildren } from 'claude-code'
 
-import type { PlanLimit, Usage } from '../types'
+import type { Lang, PlanLimit, Usage } from '../types'
 
 const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] } as Usage)
+const lang = atom({ plugin: 'plan-band', key: 'lang' } as const, 'en' as Lang)
 
-const LABELS: Record<string, string> = { five_hour: '5h', seven_day: 'Semana' }
+const LABELS: Record<Lang, Record<string, string>> = {
+  en: { five_hour: '5h', seven_day: 'Week' },
+  es: { five_hour: '5h', seven_day: 'Semana' },
+  fr: { five_hour: '5h', seven_day: 'Semaine' },
+  de: { five_hour: '5h', seven_day: 'Woche' },
+  pt: { five_hour: '5h', seven_day: 'Semana' },
+  it: { five_hour: '5h', seven_day: 'Settimana' }
+}
+
+// Codes and names the free-text `language` setting of Claude Code can hold.
+const NAMES: Record<string, Lang> = {
+  english: 'en', ingles: 'en',
+  spanish: 'es', espanol: 'es', castellano: 'es',
+  french: 'fr', francais: 'fr',
+  german: 'de', deutsch: 'de',
+  portuguese: 'pt', portugues: 'pt',
+  italian: 'it', italiano: 'it'
+}
+
+const toLang = (value: unknown): Lang | undefined => {
+  if (typeof value !== 'string') return undefined
+  const v = value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const code = v.split(/[-_.\s]/)[0] ?? ''
+  if (code in LABELS) return code as Lang
+  return NAMES[v] ?? NAMES[code]
+}
 const BAR = 4
 const PIES = ['○', '◔', '◑', '◕', '●']
 
@@ -36,8 +62,12 @@ const pick = (limits: PlanLimit[], contextPercent?: number, costUsd?: number): U
   costUsd
 })
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
+    const chosen = toLang(options.language)
+    const l = chosen ?? toLang((await $.settings.read()).language) ?? 'en'
+    await update($, lang, () => l)
+
     const u = await $.session.usage()
     await update($, usage, () => pick(u.rateLimits, u.context.percent, u.cost?.usd))
 
@@ -57,10 +87,11 @@ export const register: Register = on => {
       return next(e)
     }
 
+    const labels = LABELS[await read($, lang)]
     const now = await $.clock.now()
     const { Box, Text } = $.ui.resolve(e)
     const sep = <Text dimColor>{'  ·  '}</Text>
-    const parts: unknown[] = []
+    const parts: RenderChildren[] = []
 
     for (const l of u.limits) {
       const free = clamp(100 - l.percentUsed)
@@ -69,7 +100,7 @@ export const register: Register = on => {
       parts.push(
         <Text>
           <Text color={color}>{pie(free)} </Text>
-          <Text dimColor>{LABELS[l.kind] ?? l.kind} </Text>
+          <Text dimColor>{labels[l.kind] ?? l.kind} </Text>
           <Text color={color}>{bar(free)} {free}%</Text>
           {reset ? <Text dimColor> ↻{reset}</Text> : null}
         </Text>
