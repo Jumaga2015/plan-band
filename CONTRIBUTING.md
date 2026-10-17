@@ -64,7 +64,7 @@ Add or change a test for every behavior you add or change. The tests mock `sessi
 ## Adding a language
 
 1. Add the code to `Lang` in `types/index.d.ts`.
-2. Add its labels to `LABELS` in `hooks/register.tsx` (every key the other languages have).
+2. Add its labels to `LABELS` and its limit names to `KINDS` in `hooks/register.tsx` (every key the other languages have). Windows such as `five_hour` need no name: the band writes them as `5h`.
 3. Add the names the Claude Code `language` setting may hold for it to `NAMES` (lowercase, without accents).
 4. List the code in the description of the `language` option in `.claude-plugin/plugin.json` and in the Language section of the README.
 5. Add a case to `tests/language.test.tsx`.

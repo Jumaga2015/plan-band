@@ -3,10 +3,11 @@
 A Claude Code plugin that shows above the prompt what is left of the plan limits (5-hour and weekly), the context use, the prompt cache and the session cost.
 
 ```
-◕ 5h ▰▰▰▱ 72% →2h14m  ·  ◑ Week ▰▰▱▱ 48% →3d6h  ·  $0.42  ·  ctx ▰▱▱▱ 23%  ·  cache 95% →52m
+◕ 5h ▰▰▰▱ 72% →2h14m  ·  ◑ 7d ▰▰▱▱ 48% →3d6h  ·  $0.42  ·  ctx ▰▱▱▱ 23%  ·  cache 95% →52m
 ```
 
 - Each limit shows the **free** percentage and the time until it resets (`→`). The color goes from green to orange to red as less is left.
+- A limit is named after its window, as Claude Code reports it: `5h`, `7d`, or any other window it may report (`1h`, `30d`). A spend limit shows as `Spend`, and an unknown kind as its own name.
 - `ctx` shows the **used** percentage of the context window.
 - `cache` shows the share of the last response's prompt that the cache served, and the time until the cache expires (`expired` after that). The time is an estimate counted from the last response; see the `cacheTtl` option. It turns orange when less than half the cache lifetime is left (30 minutes with `1h`), and red under a sixth (10 minutes).
 - Pointing at `ctx` shows a tooltip with the biggest rows of the context (as `/context` lists them, in % of the window); pointing at `cache`, one with the cache use of the last response (read, written and new tokens). They need a pointer: they do not show where the surface has none.
@@ -45,6 +46,7 @@ The prompt cache lasts 1 hour or 5 minutes after a response, and Claude Code doe
 
 Plugin para Claude Code que muestra encima del prompt lo que queda de los límites del plan (5 horas y semanal), el uso del contexto, la caché del prompt y el coste de la sesión.
 
+- Límites: cada uno se nombra por su ventana, como la informa Claude Code: `5h`, `7d` o cualquier otra (`1h`, `30d`). Un límite de gasto sale como `Gasto`, y uno desconocido con su propio nombre.
 - Instalación: `/plugin install plan-band --marketplace Jumaga2015/plan-band` en el prompt de Claude Code (terminal).
 - Idioma: por defecto, la banda usa el idioma del ajuste `language` de Claude Code. Para elegir otro, cambie la opción `language` del plugin en `/config` (`en`, `es`, `fr`, `de`, `pt` o `it`).
 - Caché: `caché 95% →52m` es el porcentaje del prompt de la última respuesta servido por la caché y el tiempo estimado hasta que caduque. La opción `cacheTtl` (`1h` o `5m`) fija la duración que se usa para la cuenta atrás. El tiempo pasa a naranja cuando queda menos de la mitad (30 minutos con `1h`) y a rojo por debajo de una sexta parte (10 minutos).

@@ -9,7 +9,8 @@ const USAGE: SessionUsage = {
   context: { window: 200000, percent: 23 },
   rateLimits: [
     { kind: 'five_hour', percentUsed: 28, resetsAt: '2026-10-17T10:14:00Z' },
-    { kind: 'seven_day', percentUsed: 52, resetsAt: '2026-10-20T14:00:00Z' }
+    { kind: 'seven_day', percentUsed: 52, resetsAt: '2026-10-20T14:00:00Z' },
+    { kind: 'spend_limit', percentUsed: 75 }
   ],
   cost: { usd: 0.42 }
 }
@@ -57,25 +58,26 @@ const bands = async ($: Engine, on: On, language: string | undefined, cleared = 
 const count = (text: string, word: string) => text.split(JSON.stringify(word)).length - 1
 
 const cases: [string, PluginOptions | undefined, string | undefined, string][] = [
-  ['auto follows the language setting', undefined, 'es', 'Semana'],
-  ['auto reads a language name with accents', undefined, 'Español', 'Semana'],
-  ['auto is English without a language setting', undefined, undefined, 'Week'],
-  ['auto is English for an unsupported language', undefined, 'japanese', 'Week'],
-  ['the plugin option wins over the setting', { language: 'en' }, 'es', 'Week'],
-  ['the plugin option takes a region code', { language: 'fr-FR' }, 'es', 'Semaine']
+  ['auto follows the language setting', undefined, 'es', 'Gasto'],
+  ['auto reads a language name with accents', undefined, 'Español', 'Gasto'],
+  ['auto is English without a language setting', undefined, undefined, 'Spend'],
+  ['auto is English for an unsupported language', undefined, 'japanese', 'Spend'],
+  ['the plugin option wins over the setting', { language: 'en' }, 'es', 'Spend'],
+  ['the plugin option takes a region code', { language: 'fr-FR' }, 'es', 'Dépenses']
 ]
 
-for (const [name, options, setting, week] of cases) {
+for (const [name, options, setting, spend] of cases) {
   test(name, options ? { options } : {}, async ($, on) => {
     for (const text of await bands($, on, setting)) {
-      expect(count(text, week)).toBe(1)
+      expect(count(text, spend)).toBe(1)
       expect(count(text, '5h')).toBe(1)
+      expect(count(text, '7d')).toBe(1)
     }
   })
 }
 
 test('the band keeps the language after a /clear', async ($, on) => {
   for (const text of await bands($, on, 'es', true)) {
-    expect(count(text, 'Semana')).toBe(1)
+    expect(count(text, 'Gasto')).toBe(1)
   }
 })

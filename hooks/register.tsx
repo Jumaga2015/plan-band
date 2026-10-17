@@ -8,13 +8,41 @@ const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] 
 type Words = Record<string, string>
 
 const LABELS: Record<Lang, Words> = {
-  en: { five_hour: '5h', seven_day: 'Week', cache: 'cache', expired: 'expired', read: 'read', wrote: 'written', fresh: 'new' },
-  es: { five_hour: '5h', seven_day: 'Semana', cache: 'caché', expired: 'caducada', read: 'leído', wrote: 'escrito', fresh: 'nuevo' },
-  fr: { five_hour: '5h', seven_day: 'Semaine', cache: 'cache', expired: 'expirée', read: 'lu', wrote: 'écrit', fresh: 'nouveau' },
-  de: { five_hour: '5h', seven_day: 'Woche', cache: 'Cache', expired: 'abgelaufen', read: 'gelesen', wrote: 'geschrieben', fresh: 'neu' },
-  pt: { five_hour: '5h', seven_day: 'Semana', cache: 'cache', expired: 'expirado', read: 'lido', wrote: 'escrito', fresh: 'novo' },
-  it: { five_hour: '5h', seven_day: 'Settimana', cache: 'cache', expired: 'scaduta', read: 'letto', wrote: 'scritto', fresh: 'nuovo' }
+  en: { cache: 'cache', expired: 'expired', read: 'read', wrote: 'written', fresh: 'new' },
+  es: { cache: 'caché', expired: 'caducada', read: 'leído', wrote: 'escrito', fresh: 'nuevo' },
+  fr: { cache: 'cache', expired: 'expirée', read: 'lu', wrote: 'écrit', fresh: 'nouveau' },
+  de: { cache: 'Cache', expired: 'abgelaufen', read: 'gelesen', wrote: 'geschrieben', fresh: 'neu' },
+  pt: { cache: 'cache', expired: 'expirado', read: 'lido', wrote: 'escrito', fresh: 'novo' },
+  it: { cache: 'cache', expired: 'scaduta', read: 'letto', wrote: 'scritto', fresh: 'nuovo' }
 }
+
+// The limit kinds with a name of their own in each language. A window is named
+// from its kind (`five_hour` is 5h, `seven_day` 7d), and anything else shows its kind.
+const KINDS: Record<Lang, Words> = {
+  en: { spend_limit: 'Spend' },
+  es: { spend_limit: 'Gasto' },
+  fr: { spend_limit: 'Dépenses' },
+  de: { spend_limit: 'Ausgaben' },
+  pt: { spend_limit: 'Gasto' },
+  it: { spend_limit: 'Spesa' }
+}
+
+const NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  twelve: 12, fourteen: 14, fifteen: 15, twenty: 20, thirty: 30, sixty: 60, ninety: 90
+}
+
+const UNITS: Record<string, string> = { minute: 'm', hour: 'h', day: 'd', week: 'w' }
+
+// A window's kind as `<count>_<unit>`, in words or digits: `five_hour` is 5h, `30_day` 30d.
+const windowLabel = (kind: string) => {
+  const m = /^([a-z]+|\d+)_(minute|hour|day|week)s?$/.exec(kind)
+  const n = m ? (NUMBERS[m[1]!] ?? (/^\d+$/.test(m[1]!) ? Number(m[1]) : undefined)) : undefined
+  return m && n ? `${n}${UNITS[m[2]!]}` : undefined
+}
+
+const kindLabel = (kind: string, lang: Lang) =>
+  KINDS[lang][kind] ?? windowLabel(kind) ?? kind.replace(/_/g, ' ')
 
 // Codes and names the free-text `language` setting of Claude Code can hold.
 const NAMES: Record<string, Lang> = {
@@ -184,7 +212,7 @@ export const register: Register = (on, options) => {
       parts.push(
         <Text>
           <Text color={color}>{pie(free)} </Text>
-          <Text dimColor>{labels[l.kind] ?? l.kind} </Text>
+          <Text dimColor>{kindLabel(l.kind, lang)} </Text>
           <Text color={color}>{bar(free)} {free}%</Text>
           {reset ? <Text dimColor> →{reset}</Text> : null}
         </Text>
