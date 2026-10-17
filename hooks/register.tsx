@@ -8,12 +8,31 @@ const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] 
 type Words = Record<string, string>
 
 const LABELS: Record<Lang, Words> = {
-  en: { cache: 'cache', expired: 'expired', read: 'read', wrote: 'written', fresh: 'new' },
-  es: { cache: 'caché', expired: 'caducada', read: 'leído', wrote: 'escrito', fresh: 'nuevo' },
-  fr: { cache: 'cache', expired: 'expirée', read: 'lu', wrote: 'écrit', fresh: 'nouveau' },
-  de: { cache: 'Cache', expired: 'abgelaufen', read: 'gelesen', wrote: 'geschrieben', fresh: 'neu' },
-  pt: { cache: 'cache', expired: 'expirado', read: 'lido', wrote: 'escrito', fresh: 'novo' },
-  it: { cache: 'cache', expired: 'scaduta', read: 'letto', wrote: 'scritto', fresh: 'nuovo' }
+  en: { cache: 'cache', expired: 'expired', read: 'read', wrote: 'written', fresh: 'new', today: 'today', tomorrow: 'tomorrow' },
+  es: { cache: 'caché', expired: 'caducada', read: 'leído', wrote: 'escrito', fresh: 'nuevo', today: 'hoy', tomorrow: 'mañana' },
+  fr: { cache: 'cache', expired: 'expirée', read: 'lu', wrote: 'écrit', fresh: 'nouveau', today: "aujourd'hui", tomorrow: 'demain' },
+  de: { cache: 'Cache', expired: 'abgelaufen', read: 'gelesen', wrote: 'geschrieben', fresh: 'neu', today: 'heute', tomorrow: 'morgen' },
+  pt: { cache: 'cache', expired: 'expirado', read: 'lido', wrote: 'escrito', fresh: 'novo', today: 'hoje', tomorrow: 'amanhã' },
+  it: { cache: 'cache', expired: 'scaduta', read: 'letto', wrote: 'scritto', fresh: 'nuovo', today: 'oggi', tomorrow: 'domani' }
+}
+
+// Short weekday (Sunday first) and month names, for the date a limit resets.
+const DAYS: Record<Lang, string[]> = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  es: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+  fr: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'],
+  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  pt: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'],
+  it: ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
+}
+
+const MONTHS: Record<Lang, string[]> = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  es: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+  fr: ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
+  de: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  pt: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'],
+  it: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
 }
 
 // The limit kinds with a name of their own in each language. A window is named
@@ -108,6 +127,29 @@ const span = (mins: number) => {
 
 const until = (iso: string | undefined, now: number) =>
   iso ? span(Math.max(0, Math.round((Date.parse(iso) - now) / MINUTE))) : ''
+
+// The time of day in local time: 4:00 PM in English, 16:00 in the other languages.
+const hourOf = (d: Date, lang: Lang) => {
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const h = d.getHours()
+  return lang === 'en' ? `${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}` : `${h}:${mm}`
+}
+
+// Local midnight of a time, in whole days, to tell today and tomorrow apart.
+const dayOf = (d: Date) => Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000)
+
+// When a limit resets, in local time: `hoy 10:14`, `mañana 1:30`, or `mar 20 oct 16:00`.
+const resetDate = (at: number, now: number, lang: Lang) => {
+  const d = new Date(at)
+  const days = dayOf(d) - dayOf(new Date(now))
+  const words = LABELS[lang]
+  if (days === 0) return `${words.today} ${hourOf(d, lang)}`
+  if (days === 1) return `${words.tomorrow} ${hourOf(d, lang)}`
+  const day = DAYS[lang][d.getDay()]
+  const month = MONTHS[lang][d.getMonth()]
+  const date = lang === 'en' ? `${month} ${d.getDate()}` : lang === 'de' ? `${d.getDate()}. ${month}` : `${d.getDate()} ${month}`
+  return `${day} ${date} ${hourOf(d, lang)}`
+}
 
 const tokens = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
@@ -205,11 +247,49 @@ export const register: Register = (on, options) => {
     const sep = <Text dimColor>{'  ·  '}</Text>
     const parts: RenderChildren[] = []
 
+    // A tooltip's card. Each item is drawn as the band draws its segments: the
+    // name dimmed, the value in its color, and the band's separator between them.
+    const card = (items: Item[]) => (
+      <Text>
+        {' '}
+        {items.flatMap(([name, value, color], i) => {
+          const item = (
+            <Text>
+              <Text dimColor>{`${name} `}</Text>
+              <Text color={color}>{value}</Text>
+            </Text>
+          )
+          return i === 0 ? [item] : [sep, item]
+        })}
+        {' '}
+      </Text>
+    )
+
+    // A segment with a tooltip: the pointer over it reveals a card that covers
+    // the line from the segment's right edge to the left, over what comes
+    // before. Whatever comes after is painted over the card, so a tooltip's
+    // segment comes last on the line, or holds all that its card covers.
+    const tip = (key: string, label: RenderChildren, items: Item[]) => (
+      <Box key={key}>
+        {label}
+        {items.length > 0 ? (
+          <Box position="absolute" top={0} right={0} display="none" hover={{ display: 'flex' }}>
+            {card(items)}
+          </Box>
+        ) : null}
+      </Box>
+    )
+
+    // The limits share one tooltip, with the date each one resets: the first
+    // limit opens the line, so a card of its own would have no room to its left.
+    const limits: RenderChildren[] = []
+    const resets: Item[] = []
+
     for (const l of u.limits) {
       const free = clamp(100 - l.percentUsed)
       const color = toneFree(free)
       const reset = until(l.resetsAt, now)
-      parts.push(
+      const segment = (
         <Text>
           <Text color={color}>{pie(free)} </Text>
           <Text dimColor>{kindLabel(l.kind, lang)} </Text>
@@ -217,39 +297,19 @@ export const register: Register = (on, options) => {
           {reset ? <Text dimColor> →{reset}</Text> : null}
         </Text>
       )
+      limits.push(segment)
+      if (l.resetsAt) {
+        resets.push([kindLabel(l.kind, lang), resetDate(Date.parse(l.resetsAt), now, lang), color])
+      }
+    }
+
+    if (limits.length > 0) {
+      parts.push(tip('limits', limits.flatMap((p, i) => (i === 0 ? [p] : [sep, p])), resets))
     }
 
     if (u.costUsd !== undefined) {
       parts.push(<Text dimColor>${u.costUsd.toFixed(2)}</Text>)
     }
-
-    // A segment with a tooltip: the pointer over it reveals a card that covers
-    // the line from the segment's right edge to the left, over what comes
-    // before. The two tooltips come last, so nothing is painted over them.
-    // Each item is drawn as the band draws its segments: the name dimmed, the
-    // value in its color, and the band's separator between them.
-    const tip = (key: string, label: RenderChildren, items: Item[]) => (
-      <Box key={key}>
-        {label}
-        {items.length > 0 ? (
-          <Box position="absolute" top={0} right={0} display="none" hover={{ display: 'flex' }}>
-            <Text>
-              {' '}
-              {items.flatMap(([name, value, color], i) => {
-                const item = (
-                  <Text>
-                    <Text dimColor>{`${name} `}</Text>
-                    <Text color={color}>{value}</Text>
-                  </Text>
-                )
-                return i === 0 ? [item] : [sep, item]
-              })}
-              {' '}
-            </Text>
-          </Box>
-        ) : null}
-      </Box>
-    )
 
     const { window, rows, cache } = u
 

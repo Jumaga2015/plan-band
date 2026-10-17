@@ -57,7 +57,7 @@ Add or change a test for every behavior you add or change. The tests mock `sessi
 
 - **Surfaces.** The band draws on the terminal and the desktop app. Hover (the `ctx` and cache tooltips) needs a pointer: the band must still read well without it.
 - **Windows console.** The classic console (`cmd`) only shows characters its font has. Any new symbol has to be in Cascadia Mono, the font the README recommends for `cmd`; if it is not in Consolas either, check that the README still says so.
-- **Width.** Keep segments short. The tooltips come last on the line so nothing is painted over them; keep them there.
+- **Width.** Keep segments short. A tooltip's card grows left from its segment's right edge, and whatever comes after is painted over it: keep the `ctx` and cache tooltips last on the line. The limits share one tooltip for the same reason, since the first limit has no room to its left.
 - **Colors.** Use the band's colors (`green`, orange `#ff8700`, `red`, `dimColor`) or theme keys, so the band reads the same everywhere.
 - **No figures, no band.** The band shows nothing until there is data, and yields to a survey (`hasSurvey`).
 
