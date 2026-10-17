@@ -62,8 +62,11 @@ const bar = (filled: number) => {
 
 const pie = (free: number) => PIES[Math.min(4, Math.round((clamp(free) / 100) * 4))]
 
-const toneFree = (free: number) => (free > 50 ? 'green' : free > 20 ? 'yellow' : 'red')
-const toneUsed = (used: number) => (used < 60 ? 'green' : used < 85 ? 'yellow' : 'red')
+// Orange as a raw color (xterm 208): terminals with fewer colors draw the nearest.
+const ORANGE = '#ff8700'
+
+const toneFree = (free: number) => (free > 50 ? 'green' : free > 20 ? ORANGE : 'red')
+const toneUsed = (used: number) => (used < 60 ? 'green' : used < 85 ? ORANGE : 'red')
 
 const span = (mins: number) => {
   const d = Math.floor(mins / 1440)
