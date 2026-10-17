@@ -1,0 +1,6 @@
+{
+  "name": "plan-band",
+  "version": "0.1.0",
+  "description": "Muestra encima del prompt lo que queda de los límites del plan (5 horas y semanal).",
+  "types": "./types/index.d.ts"
+}
