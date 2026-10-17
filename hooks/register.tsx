@@ -68,6 +68,8 @@ const ORANGE = '#ff8700'
 
 const toneFree = (free: number) => (free > 50 ? 'green' : free > 20 ? ORANGE : 'red')
 const toneUsed = (used: number) => (used < 60 ? 'green' : used < 85 ? ORANGE : 'red')
+// The cache countdown, by the share of its lifetime left: under a half, under a sixth.
+const toneLeft = (left: number, ttl: number) => (left * 2 >= ttl ? 'green' : left * 6 >= ttl ? ORANGE : 'red')
 
 const span = (mins: number) => {
   const d = Math.floor(mins / 1440)
@@ -248,7 +250,7 @@ export const register: Register = (on, options) => {
           'cache',
           <Text>
             <Text color={color}>{`${labels.cache} ${cache.hitPercent}%`}</Text>
-            {left > 0 ? <Text dimColor>{` →${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
+            {left > 0 ? <Text color={toneLeft(left, ttl)}>{` →${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
           </Text>,
           [
             [labels.read, tokens(cache.readTokens), color],

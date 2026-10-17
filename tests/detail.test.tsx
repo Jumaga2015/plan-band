@@ -73,6 +73,25 @@ test('the cache counts down from the 5m option', ttl('5m'), async ($, on) => {
   expect(text).toContain('" →1m"')
 })
 
+// The countdown as drawn: its color, then the time left.
+const countdown = (color: string, left: string) => `{"type":"Text","props":{"color":"${color}"},"children":[" →${left}"]}`
+
+test('the cache countdown is green while more than half its lifetime is left', async ($, on) => {
+  expect(await draw($, on, true, 30)).toContain(countdown('green', '30m'))
+})
+
+test('the cache countdown turns orange under half its lifetime', async ($, on) => {
+  expect(await draw($, on, true, 35)).toContain(countdown('#ff8700', '25m'))
+})
+
+test('the cache countdown turns red under a sixth of its lifetime', async ($, on) => {
+  expect(await draw($, on, true, 52)).toContain(countdown('red', '8m'))
+})
+
+test('the 5m countdown scales the same thresholds', ttl('5m'), async ($, on) => {
+  expect(await draw($, on, true, 3)).toContain(countdown('#ff8700', '2m'))
+})
+
 test('the cache shows as expired once its lifetime is over', ttl('5m'), async ($, on) => {
   const text = await draw($, on, true, 6)
   expect(text).toContain('" caducada"')
