@@ -10,6 +10,6 @@ export type Lang = 'en' | 'es' | 'fr' | 'de' | 'pt' | 'it'
 
 declare module 'claude-code' {
   interface PluginState {
-    'plan-band': { usage: Usage; lang: Lang }
+    'plan-band': { usage: Usage }
   }
 }

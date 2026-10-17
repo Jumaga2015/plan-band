@@ -17,13 +17,21 @@ const USAGE: SessionUsage = {
 const SURFACES = ['terminal', 'desktop'] as const
 
 // Draws the band once on each surface, with the Claude Code `language` setting given.
-const bands = async ($: Engine, on: On, language: string | undefined) => {
+// With `cleared`, the band gets its figures from a measurement alone, as after a
+// `/clear`, which fires no `session.start`.
+const bands = async ($: Engine, on: On, language: string | undefined, cleared = false) => {
   on('settings.read', async () => ({ value: { language } as Settings }))
   on('session.usage', async () => ({ value: USAGE }))
   on('clock.now', async () => ({ value: NOW }))
   on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  on('session.measure', async (_, e) => ({ changed: e.changed }))
 
-  await $.session.start({ cwd: 'C:/work', surface: 'terminal', isInteractive: true })
+  if (cleared) {
+    const { context, rateLimits, cost } = USAGE
+    await $.session.measure({ context, rateLimits, cost, changed: ['rateLimits'] })
+  } else {
+    await $.session.start({ cwd: 'C:/work', surface: 'terminal', isInteractive: true })
+  }
 
   const texts: string[] = []
   for (const surface of SURFACES) {
@@ -65,3 +73,9 @@ for (const [name, options, setting, week] of cases) {
     }
   })
 }
+
+test('the band keeps the language after a /clear', async ($, on) => {
+  for (const text of await bands($, on, 'es', true)) {
+    expect(count(text, 'Semana')).toBe(1)
+  }
+})

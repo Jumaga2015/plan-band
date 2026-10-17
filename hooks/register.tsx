@@ -4,7 +4,6 @@ import type { Register, RenderChildren } from 'claude-code'
 import type { Lang, PlanLimit, Usage } from '../types'
 
 const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] } as Usage)
-const lang = atom({ plugin: 'plan-band', key: 'lang' } as const, 'en' as Lang)
 
 const LABELS: Record<Lang, Record<string, string>> = {
   en: { five_hour: '5h', seven_day: 'Week' },
@@ -63,11 +62,11 @@ const pick = (limits: PlanLimit[], contextPercent?: number, costUsd?: number): U
 })
 
 export const register: Register = (on, options) => {
-  on('session.start', async ($, e, next) => {
-    const chosen = toLang(options.language)
-    const l = chosen ?? toLang((await $.settings.read()).language) ?? 'en'
-    await update($, lang, () => l)
+  // Resolved at the first draw and kept by the module: `/clear` fires no
+  // `session.start`, and a change of the plugin option reloads the module.
+  let lang: Lang | undefined
 
+  on('session.start', async ($, e, next) => {
     const u = await $.session.usage()
     await update($, usage, () => pick(u.rateLimits, u.context.percent, u.cost?.usd))
 
@@ -87,7 +86,8 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
-    const labels = LABELS[await read($, lang)]
+    lang ??= toLang(options.language) ?? toLang((await $.settings.read()).language) ?? 'en'
+    const labels = LABELS[lang]
     const now = await $.clock.now()
     const { Box, Text } = $.ui.resolve(e)
     const sep = <Text dimColor>{'  ·  '}</Text>

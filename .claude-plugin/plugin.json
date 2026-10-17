@@ -1,6 +1,6 @@
 {
   "name": "plan-band",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shows above the prompt what is left of the plan limits (5-hour and weekly), the context use and the session cost.",
   "author": { "name": "Jumaga2015" },
   "types": "./types/index.d.ts",
