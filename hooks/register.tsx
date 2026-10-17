@@ -102,7 +102,7 @@ export const register: Register = (on, options) => {
           <Text color={color}>{pie(free)} </Text>
           <Text dimColor>{labels[l.kind] ?? l.kind} </Text>
           <Text color={color}>{bar(free)} {free}%</Text>
-          {reset ? <Text dimColor> ↻{reset}</Text> : null}
+          {reset ? <Text dimColor> →{reset}</Text> : null}
         </Text>
       )
     }

@@ -3,12 +3,13 @@
 A Claude Code plugin that shows above the prompt what is left of the plan limits (5-hour and weekly), the context use and the session cost.
 
 ```
-◕ 5h ▰▰▰▱ 72% ↻2h14m  ·  ◑ Week ▰▰▱▱ 48% ↻3d6h  ·  ctx ▰▱▱▱ 23%  ·  $0.42
+◕ 5h ▰▰▰▱ 72% →2h14m  ·  ◑ Week ▰▰▱▱ 48% →3d6h  ·  ctx ▰▱▱▱ 23%  ·  $0.42
 ```
 
-- Each limit shows the **free** percentage and the time until it resets (`↻`). The color goes from green to yellow to red as less is left.
+- Each limit shows the **free** percentage and the time until it resets (`→`). The color goes from green to yellow to red as less is left.
 - `ctx` shows the **used** percentage of the context window.
 - The band updates on each measurement of the session, and does not show until there is data.
+- In the classic Windows console (`cmd`), choose a font that has the shapes, such as Cascadia Mono: the classic console does not take missing characters from other fonts, and Consolas does not have `◔ ◑ ◕ ▰ ▱`. Windows Terminal and VS Code show them with any font.
 
 ## Install
 
