@@ -46,11 +46,13 @@ claude plugin test .
 
 `validate` reads the manifest and the module as Claude Code will, and lists what the module hooks and calls. `test` runs `tests/*.test.tsx` against a mock engine.
 
-To type-check, once Claude Code has loaded the plugin (so `.claude-plugin/types/` exists) and with TypeScript at hand:
+To type-check, once Claude Code has loaded the plugin (so `.claude-plugin/types/` exists):
 
 ```
-npx tsc -p .
+npx -p typescript tsc -p .
 ```
+
+This fetches TypeScript if it is not installed and leaves no `package.json` or `node_modules` in the repo. With TypeScript installed globally (`npm install -g typescript`), `tsc -p .` is enough. A bare `npx tsc` does not work without it: npx would fetch an unrelated package named `tsc`.
 
 Add or change a test for every behavior you add or change. The tests mock `session.usage`, `clock.now` and `settings.read`, then mount the `AbovePrompt` band and look at the drawn tree; see `tests/detail.test.tsx`.
 
