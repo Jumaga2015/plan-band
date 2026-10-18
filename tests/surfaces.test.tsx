@@ -94,36 +94,52 @@ for (const surface of ['desktop', 'vscode']) {
     expect(text).toContain('"color":"#ff8700"')
   })
 
-  test(`${surface} reveals the detail of each segment as a card on hover`, async ($, on) => {
+  test(`${surface} draws no card over the band`, async ($, on) => {
     const text = (await bands($, on))[surface]!
-    // A card for each of the two limits, ctx and the cache; none for the cost.
-    expect(count(text, '"hover":{"display":"flex"}')).toBe(4)
-    expect(count(text, '"display":"none"')).toBe(4)
-    expect(count(text, '"position":"absolute"')).toBe(4)
-    for (const detail of ['"72%"', '"48%"', '"23%"', '"95%"', '"leído "']) expect(text).toContain(detail)
-  })
-
-  test(`${surface} gives the card a background of the theme, inverted`, async ($, on) => {
-    const text = (await bands($, on))[surface]!
-    expect(count(text, '"backgroundColor":"text"')).toBe(4)
-    expect(count(text, '"color":"inverseText"')).toBe(4)
-  })
-
-  test(`${surface} draws the card's text in its one inverted color, figures in bold`, async ($, on) => {
-    const text = (await bands($, on))[surface]!
-    // Each card, from its inverted text to the space that closes it: nothing
-    // dimmed or colored.
-    for (const card of text.split('"color":"inverseText"').slice(1)) {
-      const inside = card.split('" "]}')[0]!
-      expect(inside).not.toContain('"dimColor"')
-      expect(inside).not.toContain('"color"')
-    }
-    expect(text).toContain('"props":{"weight":"bold","bold":true},"children":["72%"]}')
-  })
-
-  test(`${surface} hangs the cards of ctx and the cache from their right edge`, async ($, on) => {
-    const text = (await bands($, on))[surface]!
-    expect(count(text, '"right":0')).toBe(2)
-    expect(count(text, '"left":0')).toBe(2)
+    expect(text).not.toContain('"hover"')
+    expect(text).not.toContain('"position":"absolute"')
   })
 }
+
+test('desktop draws each segment with a detail as a Client of the plugin', async ($, on) => {
+  const { desktop } = await bands($, on)
+  // The two limits, ctx and the cache; the cost has no detail.
+  expect(count(desktop!, '"type":"Client"')).toBe(4)
+  expect(desktop).toContain('"module":"hooks/segment.tsx"')
+})
+
+test('vscode, with no Client, draws the figures alone', async ($, on) => {
+  const { vscode } = await bands($, on)
+  expect(vscode).not.toContain('"type":"Client"')
+  expect(vscode).toContain(GREEN_BAR)
+})
+
+test('on the desktop a click swaps a segment for its detail, in the band colors, and the next one back', async ($, on) => {
+  on('settings.read', async () => ({ value: { language: 'es' } as Settings }))
+  on('session.usage', async () => ({ value: USAGE }))
+  on('clock.now', async () => ({ value: START }))
+  on('session.measure', async (_, e) => ({ changed: e.changed }))
+  const { rateLimits, cost } = USAGE
+  await $.session.measure({ context: { window: WINDOW, percent: 23 }, rateLimits, cost, changed: ['cost'] })
+
+  const ui = await $.ui.mount({
+    plugin: 'plan-band',
+    surface: 'desktop',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 40, bodyColumns: 120, scroll: { offset: 0, bodyRows: 40 }, view: {} }
+  })
+  const segment = async () => JSON.stringify(await ui.drawn({ in: 'limit:five_hour' }))
+  const click = async () => {
+    await ui.pointer({ type: 'down', x: 1, y: 0, button: 'left', in: 'limit:five_hour' })
+    await ui.pointer({ type: 'up', x: 1, y: 0, button: 'left', in: 'limit:five_hour' })
+  }
+
+  expect(await segment()).toContain('"2h14m"')
+  await click()
+  const detail = await segment()
+  expect(detail).toContain('{"type":"Text","props":{"dimColor":true},"children":["5h "]}')
+  expect(detail).toContain('{"type":"Text","props":{"color":"green"},"children":["72%"]}')
+  expect(detail).not.toContain('2h14m')
+  await click()
+  expect(await segment()).toContain('2h14m')
+})

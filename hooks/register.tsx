@@ -10,6 +10,10 @@ const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] 
 // The segments a press has swapped for their detail, by their key.
 const open = atom({ plugin: 'plan-band', key: 'open' } as const, [] as string[])
 
+// A press swaps a segment's figures for its detail, and the next one back.
+const toggle = ($: Parameters<typeof update>[0], key: string) =>
+  update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
+
 const NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   twelve: 12, fourteen: 14, fifteen: 15, twenty: 20, thirty: 30, sixty: 60, ninety: 90
@@ -216,6 +220,14 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // A click on a segment, posted by its Client on the desktop.
+  on('ui.message', async ($, e, next) => {
+    if (e.module.endsWith('segment.tsx') && (e.data as { toggle?: boolean } | null)?.toggle) {
+      await toggle($, e.element)
+    }
+    return next(e)
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const u = await read($, usage)
     const hasData = u.limits.length > 0 || u.contextPercent !== undefined
@@ -230,15 +242,11 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const sep = <Text dimColor>{' · '}</Text>
     const parts: Part[] = []
-    const terminal = e.surface === 'terminal'
 
-    // A detail's words and figures. On the terminal it takes the segment's
-    // place, so it is drawn as the band is: the words dimmed, each figure in its
-    // color. Elsewhere it is a card on an inverted background, where the band's
-    // colors do not read: there it keeps the card's one color, figures in bold.
-    const word = (text: string) => (terminal ? <Text dimColor>{text}</Text> : <Text>{text}</Text>)
-    const figure = (text: string, color?: string) =>
-      terminal ? <Text color={color}>{text}</Text> : <Text weight="bold">{text}</Text>
+    // A detail's words and figures, drawn as the band is, since the detail takes
+    // the segment's place: the words dimmed, each figure in its color.
+    const word = (text: string) => <Text dimColor>{text}</Text>
+    const figure = (text: string, color?: string) => <Text color={color}>{text}</Text>
 
     // A detail's items: each name and its value, and commas between them, not
     // the band's separator.
@@ -366,9 +374,11 @@ export const register: Register = (on, options) => {
     }
 
     // The band fits its width by giving way, level by level (see GIVES_WAY).
-    // A segment showing its detail is the person's choice: it stays. Only the
-    // terminal has the click; elsewhere the detail is a card, shown on hover.
-    const opened = (p: Part) => terminal && p.detail !== undefined && shown.includes(p.key)
+    // A segment showing its detail is the person's choice: it stays. The click
+    // is the terminal's and the desktop's; elsewhere the band has no detail.
+    const terminal = e.surface === 'terminal'
+    const pressable = terminal || e.surface === 'desktop'
+    const opened = (p: Part) => pressable && p.detail !== undefined && shown.includes(p.key)
     const form = (p: Part, level: number) => (opened(p) ? p.detail! : level >= SHORT_FROM ? p.short : p.full)
     const drawn = (level: number) => parts.filter(p => opened(p) || level < GIVES_WAY[p.section])
     const width = (level: number) =>
@@ -379,43 +389,26 @@ export const register: Register = (on, options) => {
       level++
     }
 
-    const toggle = (key: string) => () =>
-      void update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
-
     // With no detail to show, the segment is plain text. On the terminal a
     // plain Button is plain text too, pressed to swap the figures for the
-    // detail. The desktop and VS Code draw a Button as a native one, over the
-    // colors of its text, so there the figures stay as they are and the
-    // detail is a card the pointer reveals, with a background of the theme's
-    // own colors inverted so that what lies beneath does not show through, and
-    // its text in the one inverted color (see `word` and `figure`).
-    // The card hangs from the segment's left edge, or its right one for the
-    // last two, which have the room to their left.
+    // detail and back. The desktop draws a Button as a native one, over the
+    // colors of its text, so there the segment is a Client of the plugin's
+    // own (segment.tsx), which draws it as given and posts a click back.
     const segments = drawn(level).map(p => {
       const figures = form(p, level)
-      if (!p.detail) {
+      if (!p.detail || !pressable) {
         return figures
       }
       if (terminal) {
         return (
-          <Button key={p.key} plain onPress={toggle(p.key)}>
+          <Button key={p.key} plain onPress={() => void toggle($, p.key)}>
             {figures}
           </Button>
         )
       }
-      const edge = p.section === 'ctx' || p.section === 'cache' ? { right: 0 } : { left: 0 }
-      return (
-        <Box key={p.key}>
-          {figures}
-          <Box position="absolute" top={0} {...edge} display="none" hover={{ display: 'flex' }} backgroundColor="text">
-            <Text color="inverseText">
-              {' '}
-              {p.detail}
-              {' '}
-            </Text>
-          </Box>
-        </Box>
-      )
+      // Only the desktop gets here (pressable), and its table has a Client.
+      const { Client } = $.ui.resolve({ ...e, surface: 'desktop' as const })
+      return <Client key={p.key} module="./segment.tsx" props={{ node: figures }} />
     })
 
     return (
