@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, RenderChildren, SessionContextUsage, SessionUsage } from 'claude-code'
+import type { Register, RenderNode, SessionContextUsage, SessionUsage } from 'claude-code'
 
 import type { PlanLimit, Usage } from '../types'
 import { LANGS, toLang } from './lang/index'
@@ -107,26 +107,53 @@ const share = (n: number, window: number) => {
 // One item of a segment's detail: its name, its value and the value's color.
 type Item = [name: string, value: string, color?: string]
 
-type Detail = Pick<Usage, 'rows' | 'window' | 'cache'>
+type Section = 'limits' | 'cost' | 'ctx' | 'cache'
 
-const keep = (prev: Usage): Detail => ({ rows: prev.rows, window: prev.window, cache: prev.cache })
+// The plugin option that shows or hides each section.
+const SHOW: Record<Section, string> = { limits: 'showLimits', cost: 'showCost', ctx: 'showCtx', cache: 'showCache' }
 
-// The tokens left in the context window: from the last response's tokens, or
-// from the percentage when only that is known.
-const freeTokens = (c: SessionContextUsage) =>
-  c.tokens !== undefined
-    ? Math.max(0, c.window - c.tokens)
-    : c.percent !== undefined
-      ? Math.round((c.window * (100 - c.percent)) / 100)
-      : undefined
+// A segment of the band in the forms it is drawn: whole, short, and its detail.
+type Part = { section: Section; key: string; full: RenderNode; short: RenderNode; detail?: RenderNode }
+
+// When the band does not fit its width it gives way one level at a time: level
+// 1 drops the cost; level 2 draws every segment short, name and bar with no
+// figure after them; level 3 drops the cache and level 4 the context. The
+// limits never give way.
+const GIVES_WAY: Record<Section, number> = { limits: Infinity, cost: 1, cache: 3, ctx: 4 }
+const GIVES_WAY_LAST = 4
+const SHORT_FROM = 2
+
+// The cells a drawn node takes on a line: the length of its text.
+const cells = (node: RenderNode): number =>
+  typeof node === 'string' ? node.length : 'children' in node && node.children ? node.children.reduce((n, c) => n + cells(c), 0) : 0
+
+type Detail = Pick<Usage, 'rows' | 'window' | 'cache' | 'compactAt'>
+
+const keep = (prev: Usage): Detail => ({ rows: prev.rows, window: prev.window, cache: prev.cache, compactAt: prev.compactAt })
+
+// The tokens in use: the last response's, or worked out from the percentage
+// when only that is known.
+const usedTokens = (c: SessionContextUsage) =>
+  c.tokens ?? (c.percent !== undefined ? Math.round((c.window * c.percent) / 100) : undefined)
 
 const pick = (limits: PlanLimit[], context: SessionContextUsage, costUsd: number | undefined, detail: Detail): Usage => ({
   limits,
   contextPercent: context.percent,
-  contextFree: freeTokens(context),
+  contextTokens: usedTokens(context),
+  contextWindow: context.window,
   costUsd,
   ...detail
 })
+
+// What is left of the context before auto-compaction runs, or before the
+// window is full when it is off: the free share of that limit and its tokens.
+const contextLeft = (u: Usage) => {
+  const limit = u.compactAt ?? u.contextWindow
+  const used = u.contextTokens
+  return limit && used !== undefined
+    ? { percent: clamp(((limit - used) / limit) * 100), tokens: Math.max(0, limit - used) }
+    : undefined
+}
 
 // The breakdown of the context window and the cache use of the last response.
 // Estimated locally, so a failure only leaves the band without the detail.
@@ -141,6 +168,7 @@ const details = async (fetch: () => Promise<SessionUsage>, now: number): Promise
     return {
       rows: b.categories.filter(c => c.kind === 'used' && c.tokens > 0).map(c => ({ name: c.name, tokens: c.tokens })),
       window: b.rawMaxTokens,
+      compactAt: b.isAutoCompactEnabled ? b.autoCompactThreshold : undefined,
       cache: api && total > 0
         ? {
             hitPercent: clamp((api.cache_read_input_tokens / total) * 100),
@@ -201,7 +229,7 @@ export const register: Register = (on, options) => {
     const shown = await read($, open)
     const { Box, Text, Button } = $.ui.resolve(e)
     const sep = <Text dimColor>{' · '}</Text>
-    const parts: RenderChildren[] = []
+    const parts: Part[] = []
 
     // A detail's items, drawn as the band draws its segments: the name dimmed,
     // the value in its color, and commas between them, not the band's separator.
@@ -216,65 +244,69 @@ export const register: Register = (on, options) => {
         return i === 0 ? [item] : [<Text dimColor>{', '}</Text>, item]
       })
 
-    // A segment that a press swaps for its detail, and the next press back.
-    // The band is drawn again, so what follows moves along: nothing overlaps.
-    // With no detail to show, the segment is plain text.
-    const toggle = (key: string) => () =>
-      void update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
-
-    const segment = (key: string, figures: RenderChildren, detail?: RenderChildren) =>
-      detail ? (
-        <Button key={key} plain onPress={toggle(key)}>
-          {shown.includes(key) ? detail : figures}
-        </Button>
-      ) : (
-        figures
-      )
+    // A segment is drawn whole (name, bar and the figure after the arrow), short
+    // (name and bar) or as its detail. A press swaps the figures for the detail
+    // and the next press back; the band is drawn again, so what follows moves
+    // along and nothing overlaps.
+    const shows = (section: Section) => options[SHOW[section]] !== false
 
     // Each limit is a segment of its own: the bar of what is free and the time
     // until it resets; its detail, the free percentage and the local date it resets.
-    for (const l of u.limits) {
-      const free = clamp(100 - l.percentUsed)
-      const color = toneFree(free)
-      const name = kindLabel(l.kind, lang)
-      const reset = until(l.resetsAt, now)
-      parts.push(
-        segment(
-          `limit:${l.kind}`,
-          <Text>
-            <Text dimColor>{name} </Text>
-            <Text color={color}>{bar(free)}</Text>
-            {reset ? <Text dimColor>→{reset}</Text> : null}
-          </Text>,
-          <Text>
-            <Text dimColor>{`${name} `}</Text>
-            <Text color={color}>{`${free}%`}</Text>
-            {l.resetsAt ? <Text dimColor>{` →${resetDate(Date.parse(l.resetsAt), now, lang)}`}</Text> : null}
-          </Text>
-        )
-      )
+    if (shows('limits')) {
+      for (const l of u.limits) {
+        const free = clamp(100 - l.percentUsed)
+        const color = toneFree(free)
+        const name = kindLabel(l.kind, lang)
+        const reset = until(l.resetsAt, now)
+        const head = [<Text dimColor>{name} </Text>, <Text color={color}>{bar(free)}</Text>]
+        parts.push({
+          section: 'limits',
+          key: `limit:${l.kind}`,
+          short: <Text>{head}</Text>,
+          full: (
+            <Text>
+              {head}
+              {reset ? <Text dimColor>→{reset}</Text> : null}
+            </Text>
+          ),
+          detail: (
+            <Text>
+              <Text dimColor>{`${name} `}</Text>
+              <Text color={color}>{`${free}%`}</Text>
+              {l.resetsAt ? <Text dimColor>{` →${resetDate(Date.parse(l.resetsAt), now, lang)}`}</Text> : null}
+            </Text>
+          )
+        })
+      }
     }
 
-    if (u.costUsd !== undefined) {
-      parts.push(<Text dimColor>${u.costUsd.toFixed(2)}</Text>)
+    if (shows('cost') && u.costUsd !== undefined) {
+      const cost = <Text dimColor>${u.costUsd.toFixed(2)}</Text>
+      parts.push({ section: 'cost', key: 'cost', short: cost, full: cost })
     }
 
     const { window, rows, cache } = u
 
-    if (u.contextPercent !== undefined) {
-      // As the other segments: a bar of what is free and, after the arrow,
-      // the tokens left; its detail, the used percentage and the biggest rows.
+    // The context: a bar of what is free before auto-compaction runs, or before
+    // the window is full when it is off, and the tokens left up to there; its
+    // detail, the share of the window in use and the biggest rows.
+    if (shows('ctx') && u.contextPercent !== undefined) {
       const used = clamp(u.contextPercent)
-      const color = toneUsed(used)
+      const left = contextLeft(u)
+      const color = toneUsed(left ? 100 - left.percent : used)
       const top = window && rows ? [...rows].sort((a, b) => b.tokens - a.tokens).slice(0, ROWS) : []
-      parts.push(
-        segment(
-          'ctx',
+      const head = [<Text dimColor>ctx </Text>, <Text color={color}>{bar(left ? left.percent : 100 - used)}</Text>]
+      parts.push({
+        section: 'ctx',
+        key: 'ctx',
+        short: <Text>{head}</Text>,
+        full: (
           <Text>
-            <Text dimColor>ctx </Text>
-            <Text color={color}>{bar(100 - used)}</Text>
-            {u.contextFree !== undefined ? <Text dimColor>{`→${tokens(u.contextFree)}`}</Text> : null}
-          </Text>,
+            {head}
+            {left ? <Text dimColor>{`→${tokens(left.tokens)}`}</Text> : null}
+          </Text>
+        ),
+        detail: (
           <Text>
             <Text dimColor>ctx </Text>
             <Text color={color}>{`${used}%`}</Text>
@@ -282,25 +314,29 @@ export const register: Register = (on, options) => {
             {window ? items(top.map((r): Item => [short(r.name), share(r.tokens, window)])) : null}
           </Text>
         )
-      )
+      })
     }
 
     // The cache: a bar of the lifetime it has left and the time until it
     // expires, both in the countdown's color; its detail, the share of the
     // last response's prompt it served and the tokens it read and wrote.
-    if (cache) {
+    if (shows('cache') && cache) {
       const ttl = options.cacheTtl === '5m' ? 5 : 60
       const left = Math.round((cache.at + ttl * MINUTE - now) / MINUTE)
       const tone = left > 0 ? toneLeft(left, ttl) : 'inactive'
       const hit = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
-      parts.push(
-        segment(
-          'cache',
+      const head = [<Text dimColor>{`${labels.cache} `}</Text>, <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>]
+      parts.push({
+        section: 'cache',
+        key: 'cache',
+        short: <Text>{head}</Text>,
+        full: (
           <Text>
-            <Text dimColor>{`${labels.cache} `}</Text>
-            <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>
+            {head}
             {left > 0 ? <Text color={tone}>{`→${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
-          </Text>,
+          </Text>
+        ),
+        detail: (
           <Text>
             <Text dimColor>{`${labels.cache} `}</Text>
             <Text color={hit}>{`${cache.hitPercent}%`}</Text>
@@ -313,12 +349,43 @@ export const register: Register = (on, options) => {
             <Text dimColor>{` ${labels.tokens}`}</Text>
           </Text>
         )
-      )
+      })
     }
+
+    if (parts.length === 0) {
+      return next(e)
+    }
+
+    // The band fits its width by giving way, level by level (see GIVES_WAY).
+    // A segment showing its detail is the person's choice: it stays.
+    const opened = (p: Part) => p.detail !== undefined && shown.includes(p.key)
+    const form = (p: Part, level: number) => (opened(p) ? p.detail! : level >= SHORT_FROM ? p.short : p.full)
+    const drawn = (level: number) => parts.filter(p => opened(p) || level < GIVES_WAY[p.section])
+    const width = (level: number) =>
+      drawn(level).reduce((n, p, i) => n + cells(form(p, level)) + (i > 0 ? cells(sep) : 0), 0)
+
+    let level = 0
+    while (level < GIVES_WAY_LAST && width(level) > e.props.bodyColumns) {
+      level++
+    }
+
+    const toggle = (key: string) => () =>
+      void update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
+
+    // With no detail to show, the segment is plain text.
+    const segments = drawn(level).map(p =>
+      p.detail ? (
+        <Button key={p.key} plain onPress={toggle(p.key)}>
+          {form(p, level)}
+        </Button>
+      ) : (
+        form(p, level)
+      )
+    )
 
     return (
       <Box>
-        {parts.flatMap((p, i) => (i === 0 ? [p] : [sep, p]))}
+        {segments.flatMap((s, i) => (i === 0 ? [s] : [sep, s]))}
       </Box>
     )
   })

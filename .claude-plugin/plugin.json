@@ -1,6 +1,6 @@
 {
   "name": "plan-band",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Shows above the prompt what is left of the plan limits (5-hour and weekly), the context use, the prompt cache and the session cost.",
   "author": { "name": "Jumaga2015" },
   "homepage": "https://github.com/Jumaga2015/plan-band",
@@ -20,6 +20,30 @@
       "description": "How long the prompt cache lasts after a response: 1h or 5m. The band counts down to its expiry from this value.",
       "default": "1h",
       "options": ["1h", "5m"]
+    },
+    "showLimits": {
+      "type": "boolean",
+      "title": "Show limits",
+      "description": "Show the plan limits (5h, 7d...) in the band.",
+      "default": true
+    },
+    "showCost": {
+      "type": "boolean",
+      "title": "Show cost",
+      "description": "Show the session cost in the band.",
+      "default": true
+    },
+    "showCtx": {
+      "type": "boolean",
+      "title": "Show context",
+      "description": "Show the context use (ctx) in the band.",
+      "default": true
+    },
+    "showCache": {
+      "type": "boolean",
+      "title": "Show cache",
+      "description": "Show the prompt cache in the band.",
+      "default": true
     }
   }
 }

@@ -15,8 +15,11 @@ export type CacheUse = {
 export type Usage = {
   limits: PlanLimit[]
   contextPercent?: number
-  // Tokens left in the context window.
-  contextFree?: number
+  // Tokens in use, and the window they fill.
+  contextTokens?: number
+  contextWindow?: number
+  // The tokens at which auto-compaction runs; absent when it is off.
+  compactAt?: number
   costUsd?: number
   rows?: ContextRow[]
   window?: number

@@ -11,7 +11,8 @@ Thanks for helping. Issues and pull requests are welcome at [Jumaga2015/plan-ban
 
 | Path | What it holds |
 | --- | --- |
-| `.claude-plugin/plugin.json` | The plugin manifest: version, description and the `userConfig` options (`language`, `cacheTtl`). |
+| `.claude-plugin/plugin.json` | The plugin manifest: version, description and the `userConfig` options (`language`, `cacheTtl`, and one `show…` switch per section). |
+| `CHANGELOG.md` | What each version changed for the people who use the band. |
 | `.claude-plugin/marketplace.json` | The marketplace that `/plugin install plan-band --marketplace Jumaga2015/plan-band` reads. |
 | `hooks/hooks.json` | Names the hooks module. |
 | `hooks/register.tsx` | The hooks module: the measurements it keeps and the band it draws. |
@@ -60,7 +61,8 @@ Add or change a test for every behavior you add or change. The tests mock `sessi
 
 - **Surfaces.** The band draws on the terminal and the desktop app. A segment's detail is a press (a click, or Enter under the focus), never a hover: a press works with or without a pointer, and redraws the band instead of painting over it.
 - **Windows console.** The classic console (`cmd`) only shows characters its font has. Any new symbol has to be in Cascadia Mono, the font the README recommends for `cmd`; if it is not in Consolas either, check that the README still says so.
-- **Width.** Keep segments short, details included: a pressed segment's detail takes its place on the line and pushes what follows to the right.
+- **Width.** Keep segments short, details included: a pressed segment's detail takes its place on the line and pushes what follows to the right. The band measures its segments (`cells`) and gives way to fit `bodyColumns`, level by level (`GIVES_WAY` in `hooks/register.tsx`): a new section needs a level there, and a short form with no figure after the arrow.
+- **Sections.** Each section has a `show…` switch in `plugin.json`, on by default. A new section gets its switch, its entry in `SHOW`, and a case in `tests/sections.test.tsx`.
 - **Colors.** Use the band's colors (`green`, orange `#ff8700`, `red`, `dimColor`) or theme keys, so the band reads the same everywhere.
 - **No figures, no band.** The band shows nothing until there is data, and yields to a survey (`hasSurvey`).
 
@@ -78,6 +80,8 @@ The dates (weekday, month, today and tomorrow, 12- or 24-hour clock) come from `
 - Each change that reaches users bumps `version` in `.claude-plugin/plugin.json`: patch for a fix, minor for a feature.
 - Commit messages follow the history: `plan-band <version>: <what changed>` for a release, then a body that says why. The history is in Spanish; English is welcome too.
 - Update the README when the band or an option changes, in English and in the Spanish section.
+- Add the version to `CHANGELOG.md`, in English, with what changes for the people who use the band (and, for a change they may notice as a loss, where it went).
+- Once the commit is on `main`, tag it: `claude plugin tag --push` creates `plan-band--v<version>` from `plugin.json` and pushes it.
 
 ## License
 
