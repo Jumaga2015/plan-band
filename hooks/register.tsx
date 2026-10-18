@@ -230,18 +230,27 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const sep = <Text dimColor>{' · '}</Text>
     const parts: Part[] = []
+    const terminal = e.surface === 'terminal'
 
-    // A detail's items, drawn as the band draws its segments: the name dimmed,
-    // the value in its color, and commas between them, not the band's separator.
+    // A detail's words and figures. On the terminal it takes the segment's
+    // place, so it is drawn as the band is: the words dimmed, each figure in its
+    // color. Elsewhere it is a card on an inverted background, where the band's
+    // colors do not read: there it keeps the card's one color, figures in bold.
+    const word = (text: string) => (terminal ? <Text dimColor>{text}</Text> : <Text>{text}</Text>)
+    const figure = (text: string, color?: string) =>
+      terminal ? <Text color={color}>{text}</Text> : <Text weight="bold">{text}</Text>
+
+    // A detail's items: each name and its value, and commas between them, not
+    // the band's separator.
     const items = (list: Item[]) =>
       list.flatMap(([name, value, color], i) => {
         const item = (
           <Text>
-            <Text dimColor>{`${name} `}</Text>
-            <Text color={color}>{value}</Text>
+            {word(`${name} `)}
+            {figure(value, color)}
           </Text>
         )
-        return i === 0 ? [item] : [<Text dimColor>{', '}</Text>, item]
+        return i === 0 ? [item] : [word(', '), item]
       })
 
     // A segment is drawn whole (name, bar and the figure after the arrow), short
@@ -271,9 +280,9 @@ export const register: Register = (on, options) => {
           ),
           detail: (
             <Text>
-              <Text dimColor>{`${name} `}</Text>
-              <Text color={color}>{`${free}%`}</Text>
-              {l.resetsAt ? <Text dimColor>{` →${resetDate(Date.parse(l.resetsAt), now, lang)}`}</Text> : null}
+              {word(`${name} `)}
+              {figure(`${free}%`, color)}
+              {l.resetsAt ? word(` →${resetDate(Date.parse(l.resetsAt), now, lang)}`) : null}
             </Text>
           )
         })
@@ -308,9 +317,9 @@ export const register: Register = (on, options) => {
         ),
         detail: (
           <Text>
-            <Text dimColor>ctx </Text>
-            <Text color={color}>{`${used}%`}</Text>
-            {window && top.length > 0 ? <Text dimColor>{', '}</Text> : null}
+            {word('ctx ')}
+            {figure(`${used}%`, color)}
+            {window && top.length > 0 ? word(', ') : null}
             {window ? items(top.map((r): Item => [short(r.name), share(r.tokens, window)])) : null}
           </Text>
         )
@@ -338,15 +347,15 @@ export const register: Register = (on, options) => {
         ),
         detail: (
           <Text>
-            <Text dimColor>{`${labels.cache} `}</Text>
-            <Text color={hit}>{`${cache.hitPercent}%`}</Text>
-            <Text dimColor>{', '}</Text>
+            {word(`${labels.cache} `)}
+            {figure(`${cache.hitPercent}%`, hit)}
+            {word(', ')}
             {items([
               [labels.read, tokens(cache.readTokens)],
               [labels.wrote, tokens(cache.writeTokens)],
               [labels.fresh, tokens(cache.freshTokens)]
             ])}
-            <Text dimColor>{` ${labels.tokens}`}</Text>
+            {word(` ${labels.tokens}`)}
           </Text>
         )
       })
@@ -357,8 +366,9 @@ export const register: Register = (on, options) => {
     }
 
     // The band fits its width by giving way, level by level (see GIVES_WAY).
-    // A segment showing its detail is the person's choice: it stays.
-    const opened = (p: Part) => p.detail !== undefined && shown.includes(p.key)
+    // A segment showing its detail is the person's choice: it stays. Only the
+    // terminal has the click; elsewhere the detail is a card, shown on hover.
+    const opened = (p: Part) => terminal && p.detail !== undefined && shown.includes(p.key)
     const form = (p: Part, level: number) => (opened(p) ? p.detail! : level >= SHORT_FROM ? p.short : p.full)
     const drawn = (level: number) => parts.filter(p => opened(p) || level < GIVES_WAY[p.section])
     const width = (level: number) =>
@@ -372,16 +382,41 @@ export const register: Register = (on, options) => {
     const toggle = (key: string) => () =>
       void update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
 
-    // With no detail to show, the segment is plain text.
-    const segments = drawn(level).map(p =>
-      p.detail ? (
-        <Button key={p.key} plain onPress={toggle(p.key)}>
-          {form(p, level)}
-        </Button>
-      ) : (
-        form(p, level)
+    // With no detail to show, the segment is plain text. On the terminal a
+    // plain Button is plain text too, pressed to swap the figures for the
+    // detail. The desktop and VS Code draw a Button as a native one, over the
+    // colors of its text, so there the figures stay as they are and the
+    // detail is a card the pointer reveals, with a background of the theme's
+    // own colors inverted so that what lies beneath does not show through, and
+    // its text in the one inverted color (see `word` and `figure`).
+    // The card hangs from the segment's left edge, or its right one for the
+    // last two, which have the room to their left.
+    const segments = drawn(level).map(p => {
+      const figures = form(p, level)
+      if (!p.detail) {
+        return figures
+      }
+      if (terminal) {
+        return (
+          <Button key={p.key} plain onPress={toggle(p.key)}>
+            {figures}
+          </Button>
+        )
+      }
+      const edge = p.section === 'ctx' || p.section === 'cache' ? { right: 0 } : { left: 0 }
+      return (
+        <Box key={p.key}>
+          {figures}
+          <Box position="absolute" top={0} {...edge} display="none" hover={{ display: 'flex' }} backgroundColor="text">
+            <Text color="inverseText">
+              {' '}
+              {p.detail}
+              {' '}
+            </Text>
+          </Box>
+        </Box>
       )
-    )
+    })
 
     return (
       <Box>

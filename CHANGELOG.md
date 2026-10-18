@@ -2,6 +2,10 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.6.1 (2026-10-18)
+
+- **VS Code and the desktop app.** Since 1.5.0 every segment was drawn as a native button, with a blue background and white letters that hid the colors of the bars and the percentages. The figures keep their colors again, and the detail is a card that shows while the pointer is over the segment, in the theme's colors inverted: its text is all in one color, so it reads in a light or a dark theme, and its figures are in bold instead of green, orange or red. The terminal keeps the click, and its detail keeps the band's colors.
+
 ## 1.6.0 (2026-10-18)
 
 - `ctx` counts up to auto-compaction: the bar and the `→` figure show what is left before Claude Code compacts the conversation on its own, not before the window is full. With auto-compaction off, they count up to the full window as before. The color follows how much of that way is used (orange at 60%, red at 85%). The detail keeps the share of the *window* in use, as `/context` lists it.
