@@ -15,7 +15,8 @@ Thanks for helping. Issues and pull requests are welcome at [Jumaga2015/plan-ban
 | `.claude-plugin/marketplace.json` | The marketplace that `/plugin install plan-band --marketplace Jumaga2015/plan-band` reads. |
 | `hooks/hooks.json` | Names the hooks module. |
 | `hooks/register.tsx` | The hooks module: the measurements it keeps and the band it draws. |
-| `types/index.d.ts` | The types of the plugin's state, and its `PluginState` contract. |
+| `hooks/lang/*.ts` | The words of the band, one file per language, and in `index.ts` the list of languages. |
+| `types/index.d.ts` | The types of the plugin's state, its `PluginState` contract, and `Strings`, the words each language file holds. |
 | `tests/*.test.tsx` | The tests, run by `claude plugin test`. |
 
 `.claude-plugin/types/` is written by Claude Code when it loads the plugin (the API types and the `tsconfig.json` the repo's own extends). It is not part of the repo.
@@ -55,19 +56,20 @@ Add or change a test for every behavior you add or change. The tests mock `sessi
 
 ## Things to keep in mind
 
-- **Surfaces.** The band draws on the terminal and the desktop app. Hover (the `ctx` and cache tooltips) needs a pointer: the band must still read well without it.
+- **Surfaces.** The band draws on the terminal and the desktop app. A segment's detail is a press (a click, or Enter under the focus), never a hover: a press works with or without a pointer, and redraws the band instead of painting over it.
 - **Windows console.** The classic console (`cmd`) only shows characters its font has. Any new symbol has to be in Cascadia Mono, the font the README recommends for `cmd`; if it is not in Consolas either, check that the README still says so.
-- **Width.** Keep segments short. A tooltip's card grows left from its segment's right edge, and whatever comes after is painted over it: keep the `ctx` and cache tooltips last on the line. The limits share one tooltip for the same reason, since the first limit has no room to its left.
+- **Width.** Keep segments short, details included: a pressed segment's detail takes its place on the line and pushes what follows to the right.
 - **Colors.** Use the band's colors (`green`, orange `#ff8700`, `red`, `dimColor`) or theme keys, so the band reads the same everywhere.
 - **No figures, no band.** The band shows nothing until there is data, and yields to a survey (`hasSurvey`).
 
 ## Adding a language
 
-1. Add the code to `Lang` in `types/index.d.ts`.
-2. Add its labels to `LABELS` and its limit names to `KINDS` in `hooks/register.tsx` (every key the other languages have). Windows such as `five_hour` need no name: the band writes them as `5h`.
-3. Add the names the Claude Code `language` setting may hold for it to `NAMES` (lowercase, without accents).
-4. List the code in the description of the `language` option in `.claude-plugin/plugin.json` and in the Language section of the README.
-5. Add a case to `tests/language.test.tsx`.
+1. Copy `hooks/lang/en.ts` to `hooks/lang/<code>.ts` and translate its words (the `Strings` type lists them). Windows such as `five_hour` need no name: the band writes them as `5h`.
+2. List it in `LANGS` in `hooks/lang/index.ts`.
+3. List the code in the description of the `language` option in `.claude-plugin/plugin.json` and in the Language section of the README.
+4. Add a case to `tests/language.test.tsx`.
+
+The dates (weekday, month, today and tomorrow, 12- or 24-hour clock) come from `Intl`, and so do the names of the language that the Claude Code `language` setting may hold (`Spanish`, `Español`, `Spanisch`...): a name `Intl` does not give goes in the file's `aliases`.
 
 ## Versions and commits
 

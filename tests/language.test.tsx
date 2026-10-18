@@ -60,6 +60,9 @@ const count = (text: string, word: string) => text.split(JSON.stringify(word)).l
 const cases: [string, PluginOptions | undefined, string | undefined, string][] = [
   ['auto follows the language setting', undefined, 'es', 'Gasto'],
   ['auto reads a language name with accents', undefined, 'Español', 'Gasto'],
+  ['auto reads a language name written in another language', undefined, 'Spanisch', 'Gasto'],
+  ['auto reads an alias of a language', undefined, 'castellano', 'Gasto'],
+  ['auto reads a language name with a region', undefined, 'French (France)', 'Dépenses'],
   ['auto is English without a language setting', undefined, undefined, 'Spend'],
   ['auto is English for an unsupported language', undefined, 'japanese', 'Spend'],
   ['the plugin option wins over the setting', { language: 'en' }, 'es', 'Spend'],

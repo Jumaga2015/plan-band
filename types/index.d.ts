@@ -15,16 +15,34 @@ export type CacheUse = {
 export type Usage = {
   limits: PlanLimit[]
   contextPercent?: number
+  // Tokens left in the context window.
+  contextFree?: number
   costUsd?: number
   rows?: ContextRow[]
   window?: number
   cache?: CacheUse
 }
 
-export type Lang = 'en' | 'es' | 'fr' | 'de' | 'pt' | 'it'
+// The words of the band in one language, as its file in `hooks/lang/` holds
+// them. The dates, and the names of the language, come from Intl.
+export type Strings = {
+  // Names of the language that Intl does not give: it already knows each
+  // language's name in every language of the band (`spanish`, `español`, `Spanisch`).
+  aliases?: string[]
+  cache: string
+  expired: string
+  read: string
+  wrote: string
+  fresh: string
+  tokens: string
+  // The limit kinds with a name of their own. A window is named from its kind
+  // (`five_hour` is 5h, `seven_day` 7d), and anything else shows its kind.
+  kinds: Record<string, string>
+}
 
 declare module 'claude-code' {
   interface PluginState {
-    'plan-band': { usage: Usage }
+    // `open`: the keys of the segments showing their detail (`ctx`, `cache`, `limit:<kind>`).
+    'plan-band': { usage: Usage; open: string[] }
   }
 }

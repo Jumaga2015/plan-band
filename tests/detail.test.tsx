@@ -30,7 +30,7 @@ const usage = (hasBreakdown: boolean): SessionUsage => ({
 
 // Measures a response at START with the breakdown given, then draws the band
 // `minutes` later. With `then`, a second measurement follows, with no breakdown.
-const draw = async ($: Engine, on: On, hasBreakdown: boolean, minutes: number, then?: 'rateLimits') => {
+const mount = async ($: Engine, on: On, hasBreakdown: boolean, minutes: number, then?: 'rateLimits') => {
   let clock = START
   on('settings.read', async () => ({ value: { language: 'es' } as Settings }))
   on('session.usage', async () => ({ value: usage(hasBreakdown) }))
@@ -57,24 +57,42 @@ const draw = async ($: Engine, on: On, hasBreakdown: boolean, minutes: number, t
       view: {}
     }
   })
-  return JSON.stringify(await ui.drawn())
+  return ui
 }
+
+const draw = async ($: Engine, on: On, hasBreakdown: boolean, minutes: number, then?: 'rateLimits') =>
+  JSON.stringify(await (await mount($, on, hasBreakdown, minutes, then)).drawn())
 
 const ttl = (cacheTtl: string): { options: PluginOptions } => ({ options: { cacheTtl } })
 
-test('the band shows the cache hit and the time until it expires', async ($, on) => {
+// The cache's bar as drawn: the lifetime it has left, in the countdown's color.
+const lifetime = (color: string, bar: string) => `{"type":"Text","props":{"color":"${color}"},"children":["${bar}"]}`
+const FULL = lifetime('green', '▰▰▰▰')
+
+test('the band shows the cache lifetime left and the time until it expires', async ($, on) => {
   const text = await draw($, on, true, 6)
-  expect(text).toContain('"caché 95%"')
-  expect(text).toContain('" →54m"')
+  expect(text).toContain('"caché "')
+  expect(text).toContain(FULL)
+  expect(text).toContain('"→54m"')
+  // The hit is in the detail only.
+  expect(text).not.toContain('95%')
+})
+
+test('the cache bar empties as its lifetime passes, in the countdown color', async ($, on) => {
+  expect(await draw($, on, true, 30)).toContain(lifetime('green', '▰▰▱▱'))
+})
+
+test('the cache bar is red, with one mark, under a sixth of its lifetime', async ($, on) => {
+  expect(await draw($, on, true, 52)).toContain(lifetime('red', '▰▱▱▱'))
 })
 
 test('the cache counts down from the 5m option', ttl('5m'), async ($, on) => {
   const text = await draw($, on, true, 4)
-  expect(text).toContain('" →1m"')
+  expect(text).toContain('"→1m"')
 })
 
 // The countdown as drawn: its color, then the time left.
-const countdown = (color: string, left: string) => `{"type":"Text","props":{"color":"${color}"},"children":[" →${left}"]}`
+const countdown = (color: string, left: string) => `{"type":"Text","props":{"color":"${color}"},"children":["→${left}"]}`
 
 test('the cache countdown is green while more than half its lifetime is left', async ($, on) => {
   expect(await draw($, on, true, 30)).toContain(countdown('green', '30m'))
@@ -95,24 +113,75 @@ test('the 5m countdown scales the same thresholds', ttl('5m'), async ($, on) => 
 test('the cache shows as expired once its lifetime is over', ttl('5m'), async ($, on) => {
   const text = await draw($, on, true, 6)
   expect(text).toContain('" caducada"')
-  expect(text).not.toContain('→')
+  expect(text).toContain(lifetime('inactive', '▱▱▱▱'))
+  // No countdown: the one arrow left is ctx's.
+  expect(text).not.toMatch(/"→\d+m"/)
 })
 
-test('ctx and the cache each have a tooltip of their own', async ($, on) => {
+// A detail's item as drawn: the name dimmed, then the value.
+const item = (name: string, value: string) =>
+  `{"type":"Text","props":{"dimColor":true},"children":["${name} "]},{"type":"Text","children":["${value}"]}`
+
+const CTX = [['msgs', '9%'], ['sys', '8%'], ['tools', '5%']]
+const CACHE = [['leído', '90k'], ['escrito', '4k'], ['nuevo', '1k']]
+
+// ctx's figures: 23% used, so a bar of 77% free and 154k of 200k tokens left.
+const CTX_BAR = '{"type":"Text","props":{"color":"green"},"children":["▰▰▰▱"]}'
+const CTX_USED = '"ctx "]},{"type":"Text","props":{"color":"green"},"children":["23%"]}'
+
+test('ctx shows a bar of what is free and the tokens left, with no percentage', async ($, on) => {
   const text = await draw($, on, true, 0)
-  // Each tooltip is drawn as the band is: the name dimmed, then the value.
-  const item = (name: string, value: string) =>
-    `{"type":"Text","props":{"dimColor":true},"children":["${name} "]},{"type":"Text"`
-    + `${value === '90k' ? ',"props":{"color":"green"}' : ''},"children":["${value}"]}`
-  for (const [name, value] of [['msgs', '9%'], ['sys', '8%'], ['tools', '5%'], ['leído', '90k'], ['escrito', '4k'], ['nuevo', '1k']]) {
-    expect(text).toContain(item(name, value))
-  }
-  expect(text).not.toContain('backgroundColor')
+  expect(text).toContain(CTX_BAR)
+  expect(text).toContain('"→154k"')
+  expect(text).not.toContain('23%')
+})
+
+test('a press on ctx swaps its figures for its used share and biggest rows, and only those', async ($, on) => {
+  const ui = await mount($, on, true, 0)
+  await ui.press({ key: 'ctx' })
+  const text = JSON.stringify(await ui.drawn())
+  expect(text).toContain(CTX_USED)
+  for (const [name, value] of CTX) expect(text).toContain(item(name!, value!))
+  expect(text).not.toContain('"→154k"')
+  // The cache, not pressed, keeps its figures.
+  expect(text).toContain(FULL)
+  expect(text).not.toContain('leído')
+  expect(text).not.toContain('"display":"none"')
+})
+
+test('a press on the cache swaps its figures for its use, and a second press back', async ($, on) => {
+  const ui = await mount($, on, true, 0)
+  await ui.press({ key: 'cache' })
+  const text = JSON.stringify(await ui.drawn())
+  for (const [name, value] of CACHE) expect(text).toContain(item(name!, value!))
+  // The hit in its color first, the unit of the counts last.
+  expect(text).toContain('"caché "]},{"type":"Text","props":{"color":"green"},"children":["95%"]}')
+  expect(text).toContain('" tokens"')
+  expect(text).not.toContain(FULL)
+  expect(text).toContain('"→154k"')
+
+  await ui.press({ key: 'cache' })
+  const back = JSON.stringify(await ui.drawn())
+  expect(back).toContain(FULL)
+  expect(back).not.toContain('leído')
+})
+
+test('the band shows no detail until a press', async ($, on) => {
+  const text = await draw($, on, true, 0)
+  for (const [name] of [...CTX, ...CACHE]) expect(text).not.toContain(`"${name} "`)
+})
+
+test('without a breakdown, a press on ctx shows its used share alone', async ($, on) => {
+  const ui = await mount($, on, false, 0)
+  await ui.press({ key: 'ctx' })
+  const text = JSON.stringify(await ui.drawn())
+  expect(text).toContain(`${CTX_USED}]}`)
+  expect(text).not.toContain('msgs')
 })
 
 test('the band keeps the cache after a measurement that is not a response', async ($, on) => {
   const text = await draw($, on, true, 6, 'rateLimits')
-  expect(text).toContain('"caché 95%"')
+  expect(text).toContain(FULL)
 })
 
 test('the band shows no cache without a breakdown', async ($, on) => {

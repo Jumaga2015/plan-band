@@ -43,11 +43,11 @@ test('the countdowns move each minute with no new measurement', async ($, on) =>
     }
   })
   const before = JSON.stringify(await ui.drawn())
-  expect(before).toContain('" →1h0m"')
-  expect(before).toContain('" →","2h0m"')
+  expect(before).toContain('"→1h0m"')
+  expect(before).toContain('"→","2h0m"')
 
   await clock.advance(6 * MINUTE)
   const after = JSON.stringify(await ui.drawn())
-  expect(after).toContain('" →54m"')
-  expect(after).toContain('" →","1h54m"')
+  expect(after).toContain('"→54m"')
+  expect(after).toContain('"→","1h54m"')
 })

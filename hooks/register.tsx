@@ -1,50 +1,14 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, RenderChildren, SessionUsage } from 'claude-code'
+import type { Register, RenderChildren, SessionContextUsage, SessionUsage } from 'claude-code'
 
-import type { Lang, PlanLimit, Usage } from '../types'
+import type { PlanLimit, Usage } from '../types'
+import { LANGS, toLang } from './lang/index'
+import type { Lang } from './lang/index'
 
 const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] } as Usage)
 
-type Words = Record<string, string>
-
-const LABELS: Record<Lang, Words> = {
-  en: { cache: 'cache', expired: 'expired', read: 'read', wrote: 'written', fresh: 'new', today: 'today', tomorrow: 'tomorrow' },
-  es: { cache: 'caché', expired: 'caducada', read: 'leído', wrote: 'escrito', fresh: 'nuevo', today: 'hoy', tomorrow: 'mañana' },
-  fr: { cache: 'cache', expired: 'expirée', read: 'lu', wrote: 'écrit', fresh: 'nouveau', today: "aujourd'hui", tomorrow: 'demain' },
-  de: { cache: 'Cache', expired: 'abgelaufen', read: 'gelesen', wrote: 'geschrieben', fresh: 'neu', today: 'heute', tomorrow: 'morgen' },
-  pt: { cache: 'cache', expired: 'expirado', read: 'lido', wrote: 'escrito', fresh: 'novo', today: 'hoje', tomorrow: 'amanhã' },
-  it: { cache: 'cache', expired: 'scaduta', read: 'letto', wrote: 'scritto', fresh: 'nuovo', today: 'oggi', tomorrow: 'domani' }
-}
-
-// Short weekday (Sunday first) and month names, for the date a limit resets.
-const DAYS: Record<Lang, string[]> = {
-  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-  es: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
-  fr: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'],
-  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
-  pt: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'],
-  it: ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
-}
-
-const MONTHS: Record<Lang, string[]> = {
-  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-  es: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
-  fr: ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
-  de: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
-  pt: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'],
-  it: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
-}
-
-// The limit kinds with a name of their own in each language. A window is named
-// from its kind (`five_hour` is 5h, `seven_day` 7d), and anything else shows its kind.
-const KINDS: Record<Lang, Words> = {
-  en: { spend_limit: 'Spend' },
-  es: { spend_limit: 'Gasto' },
-  fr: { spend_limit: 'Dépenses' },
-  de: { spend_limit: 'Ausgaben' },
-  pt: { spend_limit: 'Gasto' },
-  it: { spend_limit: 'Spesa' }
-}
+// The segments a press has swapped for their detail, by their key.
+const open = atom({ plugin: 'plan-band', key: 'open' } as const, [] as string[])
 
 const NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -61,25 +25,7 @@ const windowLabel = (kind: string) => {
 }
 
 const kindLabel = (kind: string, lang: Lang) =>
-  KINDS[lang][kind] ?? windowLabel(kind) ?? kind.replace(/_/g, ' ')
-
-// Codes and names the free-text `language` setting of Claude Code can hold.
-const NAMES: Record<string, Lang> = {
-  english: 'en', ingles: 'en',
-  spanish: 'es', espanol: 'es', castellano: 'es',
-  french: 'fr', francais: 'fr',
-  german: 'de', deutsch: 'de',
-  portuguese: 'pt', portugues: 'pt',
-  italian: 'it', italiano: 'it'
-}
-
-const toLang = (value: unknown): Lang | undefined => {
-  if (typeof value !== 'string') return undefined
-  const v = value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  const code = v.split(/[-_.\s]/)[0] ?? ''
-  if (code in LABELS) return code as Lang
-  return NAMES[v] ?? NAMES[code]
-}
+  LANGS[lang].kinds[kind] ?? windowLabel(kind) ?? kind.replace(/_/g, ' ')
 
 // Short names for the rows `/context` lists; any other row keeps its first word.
 const SHORT: Record<string, string> = {
@@ -97,7 +43,6 @@ const short = (name: string) => {
 }
 
 const BAR = 4
-const PIES = ['○', '◔', '◑', '◕', '●']
 const ROWS = 4
 const MINUTE = 60000
 
@@ -107,8 +52,6 @@ const bar = (filled: number) => {
   const n = Math.round((clamp(filled) / 100) * BAR)
   return '▰'.repeat(n) + '▱'.repeat(BAR - n)
 }
-
-const pie = (free: number) => PIES[Math.min(4, Math.round((clamp(free) / 100) * 4))]
 
 // Orange as a raw color (xterm 208): terminals with fewer colors draw the nearest.
 const ORANGE = '#ff8700'
@@ -128,27 +71,29 @@ const span = (mins: number) => {
 const until = (iso: string | undefined, now: number) =>
   iso ? span(Math.max(0, Math.round((Date.parse(iso) - now) / MINUTE))) : ''
 
-// The time of day in local time: 4:00 PM in English, 16:00 in the other languages.
-const hourOf = (d: Date, lang: Lang) => {
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  const h = d.getHours()
-  return lang === 'en' ? `${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}` : `${h}:${mm}`
-}
-
 // Local midnight of a time, in whole days, to tell today and tomorrow apart.
 const dayOf = (d: Date) => Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000)
+
+// A local time as Intl writes it in the language, without its commas, periods
+// and `de`, to keep it short: `mar 20 oct 16:00`, `Tue Oct 20 4:00 PM`.
+const local = (d: Date, lang: Lang, options: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat(lang, options)
+    .formatToParts(d)
+    .map(p => (p.type !== 'literal' ? p.value.replace(/\.$/, '') : p.value.includes(':') ? ':' : p.value.replace(/[,.]|\bde\b/g, ' ')))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const TIME = { hour: 'numeric', minute: '2-digit' } as const
 
 // When a limit resets, in local time: `hoy 10:14`, `mañana 1:30`, or `mar 20 oct 16:00`.
 const resetDate = (at: number, now: number, lang: Lang) => {
   const d = new Date(at)
   const days = dayOf(d) - dayOf(new Date(now))
-  const words = LABELS[lang]
-  if (days === 0) return `${words.today} ${hourOf(d, lang)}`
-  if (days === 1) return `${words.tomorrow} ${hourOf(d, lang)}`
-  const day = DAYS[lang][d.getDay()]
-  const month = MONTHS[lang][d.getMonth()]
-  const date = lang === 'en' ? `${month} ${d.getDate()}` : lang === 'de' ? `${d.getDate()}. ${month}` : `${d.getDate()} ${month}`
-  return `${day} ${date} ${hourOf(d, lang)}`
+  if (days === 0 || days === 1) {
+    return `${new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')} ${local(d, lang, TIME)}`
+  }
+  return local(d, lang, { weekday: 'short', day: 'numeric', month: 'short', ...TIME })
 }
 
 const tokens = (n: number) =>
@@ -159,22 +104,32 @@ const share = (n: number, window: number) => {
   return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`
 }
 
-// One item of a tooltip: its name, its value and the value's color.
+// One item of a segment's detail: its name, its value and the value's color.
 type Item = [name: string, value: string, color?: string]
 
 type Detail = Pick<Usage, 'rows' | 'window' | 'cache'>
 
 const keep = (prev: Usage): Detail => ({ rows: prev.rows, window: prev.window, cache: prev.cache })
 
-const pick = (limits: PlanLimit[], contextPercent: number | undefined, costUsd: number | undefined, detail: Detail): Usage => ({
+// The tokens left in the context window: from the last response's tokens, or
+// from the percentage when only that is known.
+const freeTokens = (c: SessionContextUsage) =>
+  c.tokens !== undefined
+    ? Math.max(0, c.window - c.tokens)
+    : c.percent !== undefined
+      ? Math.round((c.window * (100 - c.percent)) / 100)
+      : undefined
+
+const pick = (limits: PlanLimit[], context: SessionContextUsage, costUsd: number | undefined, detail: Detail): Usage => ({
   limits,
-  contextPercent,
+  contextPercent: context.percent,
+  contextFree: freeTokens(context),
   costUsd,
   ...detail
 })
 
 // The breakdown of the context window and the cache use of the last response.
-// Estimated locally, so a failure only leaves the band without the hover card.
+// Estimated locally, so a failure only leaves the band without the detail.
 const details = async (fetch: () => Promise<SessionUsage>, now: number): Promise<Detail | undefined> => {
   try {
     const b = (await fetch()).context.breakdown
@@ -213,7 +168,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     const u = await $.session.usage()
-    await update($, usage, prev => pick(u.rateLimits, u.context.percent, u.cost?.usd, keep(prev)))
+    await update($, usage, prev => pick(u.rateLimits, u.context, u.cost?.usd, keep(prev)))
 
     return next(e)
   })
@@ -223,7 +178,7 @@ export const register: Register = (on, options) => {
     const moved = e.changed.includes('context') || e.changed.includes('cost')
     const now = await $.clock.now()
     const detail = moved ? await details(() => $.session.usage({ breakdown: 'summary' }), now) : undefined
-    await update($, usage, prev => pick(e.rateLimits, e.context.percent, e.cost?.usd, detail ?? keep(prev)))
+    await update($, usage, prev => pick(e.rateLimits, e.context, e.cost?.usd, detail ?? keep(prev)))
 
     if (!ticking) {
       ticking = true
@@ -241,70 +196,63 @@ export const register: Register = (on, options) => {
     }
 
     lang ??= toLang(options.language) ?? toLang((await $.settings.read()).language) ?? 'en'
-    const labels = LABELS[lang]
+    const labels = LANGS[lang]
     const now = await $.clock.now()
-    const { Box, Text } = $.ui.resolve(e)
-    const sep = <Text dimColor>{'  ·  '}</Text>
+    const shown = await read($, open)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const sep = <Text dimColor>{' · '}</Text>
     const parts: RenderChildren[] = []
 
-    // A tooltip's card. Each item is drawn as the band draws its segments: the
-    // name dimmed, the value in its color, and the band's separator between them.
-    const card = (items: Item[]) => (
-      <Text>
-        {' '}
-        {items.flatMap(([name, value, color], i) => {
-          const item = (
-            <Text>
-              <Text dimColor>{`${name} `}</Text>
-              <Text color={color}>{value}</Text>
-            </Text>
-          )
-          return i === 0 ? [item] : [sep, item]
-        })}
-        {' '}
-      </Text>
-    )
+    // A detail's items, drawn as the band draws its segments: the name dimmed,
+    // the value in its color, and commas between them, not the band's separator.
+    const items = (list: Item[]) =>
+      list.flatMap(([name, value, color], i) => {
+        const item = (
+          <Text>
+            <Text dimColor>{`${name} `}</Text>
+            <Text color={color}>{value}</Text>
+          </Text>
+        )
+        return i === 0 ? [item] : [<Text dimColor>{', '}</Text>, item]
+      })
 
-    // A segment with a tooltip: the pointer over it reveals a card that covers
-    // the line from the segment's right edge to the left, over what comes
-    // before. Whatever comes after is painted over the card, so a tooltip's
-    // segment comes last on the line, or holds all that its card covers.
-    const tip = (key: string, label: RenderChildren, items: Item[]) => (
-      <Box key={key}>
-        {label}
-        {items.length > 0 ? (
-          <Box position="absolute" top={0} right={0} display="none" hover={{ display: 'flex' }}>
-            {card(items)}
-          </Box>
-        ) : null}
-      </Box>
-    )
+    // A segment that a press swaps for its detail, and the next press back.
+    // The band is drawn again, so what follows moves along: nothing overlaps.
+    // With no detail to show, the segment is plain text.
+    const toggle = (key: string) => () =>
+      void update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
 
-    // The limits share one tooltip, with the date each one resets: the first
-    // limit opens the line, so a card of its own would have no room to its left.
-    const limits: RenderChildren[] = []
-    const resets: Item[] = []
+    const segment = (key: string, figures: RenderChildren, detail?: RenderChildren) =>
+      detail ? (
+        <Button key={key} plain onPress={toggle(key)}>
+          {shown.includes(key) ? detail : figures}
+        </Button>
+      ) : (
+        figures
+      )
 
+    // Each limit is a segment of its own: the bar of what is free and the time
+    // until it resets; its detail, the free percentage and the local date it resets.
     for (const l of u.limits) {
       const free = clamp(100 - l.percentUsed)
       const color = toneFree(free)
+      const name = kindLabel(l.kind, lang)
       const reset = until(l.resetsAt, now)
-      const segment = (
-        <Text>
-          <Text color={color}>{pie(free)} </Text>
-          <Text dimColor>{kindLabel(l.kind, lang)} </Text>
-          <Text color={color}>{bar(free)} {free}%</Text>
-          {reset ? <Text dimColor> →{reset}</Text> : null}
-        </Text>
+      parts.push(
+        segment(
+          `limit:${l.kind}`,
+          <Text>
+            <Text dimColor>{name} </Text>
+            <Text color={color}>{bar(free)}</Text>
+            {reset ? <Text dimColor>→{reset}</Text> : null}
+          </Text>,
+          <Text>
+            <Text dimColor>{`${name} `}</Text>
+            <Text color={color}>{`${free}%`}</Text>
+            {l.resetsAt ? <Text dimColor>{` →${resetDate(Date.parse(l.resetsAt), now, lang)}`}</Text> : null}
+          </Text>
+        )
       )
-      limits.push(segment)
-      if (l.resetsAt) {
-        resets.push([kindLabel(l.kind, lang), resetDate(Date.parse(l.resetsAt), now, lang), color])
-      }
-    }
-
-    if (limits.length > 0) {
-      parts.push(tip('limits', limits.flatMap((p, i) => (i === 0 ? [p] : [sep, p])), resets))
     }
 
     if (u.costUsd !== undefined) {
@@ -314,37 +262,56 @@ export const register: Register = (on, options) => {
     const { window, rows, cache } = u
 
     if (u.contextPercent !== undefined) {
+      // As the other segments: a bar of what is free and, after the arrow,
+      // the tokens left; its detail, the used percentage and the biggest rows.
       const used = clamp(u.contextPercent)
       const color = toneUsed(used)
       const top = window && rows ? [...rows].sort((a, b) => b.tokens - a.tokens).slice(0, ROWS) : []
       parts.push(
-        tip(
+        segment(
           'ctx',
           <Text>
             <Text dimColor>ctx </Text>
-            <Text color={color}>{bar(used)} {used}%</Text>
+            <Text color={color}>{bar(100 - used)}</Text>
+            {u.contextFree !== undefined ? <Text dimColor>{`→${tokens(u.contextFree)}`}</Text> : null}
           </Text>,
-          window ? top.map((r): Item => [short(r.name), share(r.tokens, window)]) : []
+          <Text>
+            <Text dimColor>ctx </Text>
+            <Text color={color}>{`${used}%`}</Text>
+            {window && top.length > 0 ? <Text dimColor>{', '}</Text> : null}
+            {window ? items(top.map((r): Item => [short(r.name), share(r.tokens, window)])) : null}
+          </Text>
         )
       )
     }
 
+    // The cache: a bar of the lifetime it has left and the time until it
+    // expires, both in the countdown's color; its detail, the share of the
+    // last response's prompt it served and the tokens it read and wrote.
     if (cache) {
       const ttl = options.cacheTtl === '5m' ? 5 : 60
       const left = Math.round((cache.at + ttl * MINUTE - now) / MINUTE)
-      const color = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
+      const tone = left > 0 ? toneLeft(left, ttl) : 'inactive'
+      const hit = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
       parts.push(
-        tip(
+        segment(
           'cache',
           <Text>
-            <Text color={color}>{`${labels.cache} ${cache.hitPercent}%`}</Text>
-            {left > 0 ? <Text color={toneLeft(left, ttl)}>{` →${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
+            <Text dimColor>{`${labels.cache} `}</Text>
+            <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>
+            {left > 0 ? <Text color={tone}>{`→${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
           </Text>,
-          [
-            [labels.read, tokens(cache.readTokens), color],
-            [labels.wrote, tokens(cache.writeTokens)],
-            [labels.fresh, tokens(cache.freshTokens)]
-          ]
+          <Text>
+            <Text dimColor>{`${labels.cache} `}</Text>
+            <Text color={hit}>{`${cache.hitPercent}%`}</Text>
+            <Text dimColor>{', '}</Text>
+            {items([
+              [labels.read, tokens(cache.readTokens)],
+              [labels.wrote, tokens(cache.writeTokens)],
+              [labels.fresh, tokens(cache.freshTokens)]
+            ])}
+            <Text dimColor>{` ${labels.tokens}`}</Text>
+          </Text>
         )
       )
     }
