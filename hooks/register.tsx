@@ -117,7 +117,20 @@ type Section = 'limits' | 'cost' | 'ctx' | 'cache'
 const SHOW: Record<Section, string> = { limits: 'showLimits', cost: 'showCost', ctx: 'showCtx', cache: 'showCache' }
 
 // A segment of the band in the forms it is drawn: whole, short, and its detail.
-type Part = { section: Section; key: string; full: RenderNode; short: RenderNode; detail?: RenderNode }
+// Each form lists what follows the segment's name, so a surface can draw the
+// name apart (VS Code makes it the button); the cost has no name, and `lead`
+// is the name as it is drawn before the figures.
+type Part = {
+  section: Section
+  key: string
+  name?: string
+  lead?: RenderNode
+  full: RenderNode[]
+  short: RenderNode[]
+  detail?: RenderNode[]
+}
+
+const nodes = (...nodes: (RenderNode | null)[]) => nodes.filter((n): n is RenderNode => n !== null)
 
 // When the band does not fit its width it gives way one level at a time: level
 // 1 drops the cost; level 2 draws every segment short, name and bar with no
@@ -275,23 +288,17 @@ export const register: Register = (on, options) => {
         const color = toneFree(free)
         const name = kindLabel(l.kind, lang)
         const reset = until(l.resetsAt, now)
-        const head = [<Text dimColor>{name} </Text>, <Text color={color}>{bar(free)}</Text>]
+        const head = <Text color={color}>{bar(free)}</Text>
         parts.push({
           section: 'limits',
           key: `limit:${l.kind}`,
-          short: <Text>{head}</Text>,
-          full: (
-            <Text>
-              {head}
-              {reset ? <Text dimColor>→{reset}</Text> : null}
-            </Text>
-          ),
-          detail: (
-            <Text>
-              {word(`${name} `)}
-              {figure(`${free}%`, color)}
-              {l.resetsAt ? word(` →${resetDate(Date.parse(l.resetsAt), now, lang)}`) : null}
-            </Text>
+          name,
+          lead: <Text dimColor>{name} </Text>,
+          short: [head],
+          full: nodes(head, reset ? <Text dimColor>→{reset}</Text> : null),
+          detail: nodes(
+            figure(`${free}%`, color),
+            l.resetsAt ? word(` →${resetDate(Date.parse(l.resetsAt), now, lang)}`) : null
           )
         })
       }
@@ -299,7 +306,7 @@ export const register: Register = (on, options) => {
 
     if (shows('cost') && u.costUsd !== undefined) {
       const cost = <Text dimColor>${u.costUsd.toFixed(2)}</Text>
-      parts.push({ section: 'cost', key: 'cost', short: cost, full: cost })
+      parts.push({ section: 'cost', key: 'cost', short: [cost], full: [cost] })
     }
 
     const { window, rows, cache } = u
@@ -312,25 +319,19 @@ export const register: Register = (on, options) => {
       const left = contextLeft(u)
       const color = toneUsed(left ? 100 - left.percent : used)
       const top = window && rows ? [...rows].sort((a, b) => b.tokens - a.tokens).slice(0, ROWS) : []
-      const head = [<Text dimColor>ctx </Text>, <Text color={color}>{bar(left ? left.percent : 100 - used)}</Text>]
+      const head = <Text color={color}>{bar(left ? left.percent : 100 - used)}</Text>
       parts.push({
         section: 'ctx',
         key: 'ctx',
-        short: <Text>{head}</Text>,
-        full: (
-          <Text>
-            {head}
-            {left ? <Text dimColor>{`→${tokens(left.tokens)}`}</Text> : null}
-          </Text>
-        ),
-        detail: (
-          <Text>
-            {word('ctx ')}
-            {figure(`${used}%`, color)}
-            {window && top.length > 0 ? word(', ') : null}
-            {window ? items(top.map((r): Item => [short(r.name), share(r.tokens, window)])) : null}
-          </Text>
-        )
+        name: 'ctx',
+        lead: <Text dimColor>ctx </Text>,
+        short: [head],
+        full: nodes(head, left ? <Text dimColor>{`→${tokens(left.tokens)}`}</Text> : null),
+        detail: [
+          figure(`${used}%`, color),
+          ...(window && top.length > 0 ? [word(', ')] : []),
+          ...(window ? items(top.map((r): Item => [short(r.name), share(r.tokens, window)])) : [])
+        ]
       })
     }
 
@@ -342,30 +343,24 @@ export const register: Register = (on, options) => {
       const left = Math.round((cache.at + ttl * MINUTE - now) / MINUTE)
       const tone = left > 0 ? toneLeft(left, ttl) : 'inactive'
       const hit = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
-      const head = [<Text dimColor>{`${labels.cache} `}</Text>, <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>]
+      const head = <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>
       parts.push({
         section: 'cache',
         key: 'cache',
-        short: <Text>{head}</Text>,
-        full: (
-          <Text>
-            {head}
-            {left > 0 ? <Text color={tone}>{`→${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>}
-          </Text>
-        ),
-        detail: (
-          <Text>
-            {word(`${labels.cache} `)}
-            {figure(`${cache.hitPercent}%`, hit)}
-            {word(', ')}
-            {items([
-              [labels.read, tokens(cache.readTokens)],
-              [labels.wrote, tokens(cache.writeTokens)],
-              [labels.fresh, tokens(cache.freshTokens)]
-            ])}
-            {word(` ${labels.tokens}`)}
-          </Text>
-        )
+        name: labels.cache,
+        lead: <Text dimColor>{`${labels.cache} `}</Text>,
+        short: [head],
+        full: [head, left > 0 ? <Text color={tone}>{`→${span(left)}`}</Text> : <Text dimColor>{` ${labels.expired}`}</Text>],
+        detail: [
+          figure(`${cache.hitPercent}%`, hit),
+          word(', '),
+          ...items([
+            [labels.read, tokens(cache.readTokens)],
+            [labels.wrote, tokens(cache.writeTokens)],
+            [labels.fresh, tokens(cache.freshTokens)]
+          ]),
+          word(` ${labels.tokens}`)
+        ]
       })
     }
 
@@ -375,14 +370,18 @@ export const register: Register = (on, options) => {
 
     // The band fits its width by giving way, level by level (see GIVES_WAY).
     // A segment showing its detail is the person's choice: it stays. The click
-    // is the terminal's and the desktop's; elsewhere the band has no detail.
+    // is the terminal's, the desktop's and VS Code's; elsewhere the band has no detail.
     const terminal = e.surface === 'terminal'
-    const pressable = terminal || e.surface === 'desktop'
+    const vscode = e.surface === 'vscode'
+    const pressable = terminal || vscode || e.surface === 'desktop'
     const opened = (p: Part) => pressable && p.detail !== undefined && shown.includes(p.key)
     const form = (p: Part, level: number) => (opened(p) ? p.detail! : level >= SHORT_FROM ? p.short : p.full)
+    // A segment as one run of text: its name, dimmed, and then its form.
+    const whole = (p: Part, rest: RenderNode[]) =>
+      p.name === undefined ? rest[0]! : <Text>{[opened(p) ? word(`${p.name} `) : p.lead!, ...rest]}</Text>
     const drawn = (level: number) => parts.filter(p => opened(p) || level < GIVES_WAY[p.section])
     const width = (level: number) =>
-      drawn(level).reduce((n, p, i) => n + cells(form(p, level)) + (i > 0 ? cells(sep) : 0), 0)
+      drawn(level).reduce((n, p, i) => n + cells(whole(p, form(p, level))) + (i > 0 ? cells(sep) : 0), 0)
 
     let level = 0
     while (level < GIVES_WAY_LAST && width(level) > e.props.bodyColumns) {
@@ -393,9 +392,12 @@ export const register: Register = (on, options) => {
     // plain Button is plain text too, pressed to swap the figures for the
     // detail and back. The desktop draws a Button as a native one, over the
     // colors of its text, so there the segment is a Client of the plugin's
-    // own (segment.tsx), which draws it as given and posts a click back.
+    // own (segment.tsx), which draws it as given and posts a click back. VS Code
+    // has no Client and draws a Button as a native one too, so only the name is
+    // the button there and the figures after it stay outside, in their colors.
     const segments = drawn(level).map(p => {
-      const figures = form(p, level)
+      const rest = form(p, level)
+      const figures = whole(p, rest)
       if (!p.detail || !pressable) {
         return figures
       }
@@ -404,6 +406,16 @@ export const register: Register = (on, options) => {
           <Button key={p.key} plain onPress={() => void toggle($, p.key)}>
             {figures}
           </Button>
+        )
+      }
+      if (vscode) {
+        return (
+          <Box>
+            <Button key={p.key} plain onPress={() => void toggle($, p.key)}>
+              {p.name!}
+            </Button>
+            <Text>{[' ', ...rest]}</Text>
+          </Box>
         )
       }
       // Only the desktop gets here (pressable), and its table has a Client.

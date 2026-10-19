@@ -85,15 +85,15 @@ test('the terminal draws a pressed detail in the band colors: words dim, figures
   expect(text).not.toContain('"weight"')
 })
 
-for (const surface of ['desktop', 'vscode']) {
-  test(`${surface} draws no button, which would hide the colors under a native one`, async ($, on) => {
-    const text = (await bands($, on))[surface]!
-    expect(text).not.toContain('"type":"Button"')
-    // The bars keep their colors, as on the terminal.
-    expect(text).toContain(GREEN_BAR)
-    expect(text).toContain('"color":"#ff8700"')
-  })
+test('desktop draws no button, which would hide the colors under a native one', async ($, on) => {
+  const { desktop } = await bands($, on)
+  expect(desktop).not.toContain('"type":"Button"')
+  // The bars keep their colors, as on the terminal.
+  expect(desktop).toContain(GREEN_BAR)
+  expect(desktop).toContain('"color":"#ff8700"')
+})
 
+for (const surface of ['desktop', 'vscode']) {
   test(`${surface} draws no card over the band`, async ($, on) => {
     const text = (await bands($, on))[surface]!
     expect(text).not.toContain('"hover"')
@@ -108,10 +108,41 @@ test('desktop draws each segment with a detail as a Client of the plugin', async
   expect(desktop).toContain('"module":"hooks/segment.tsx"')
 })
 
-test('vscode, with no Client, draws the figures alone', async ($, on) => {
+test('vscode, with no Client, makes only the name of each segment with a detail a button', async ($, on) => {
   const { vscode } = await bands($, on)
   expect(vscode).not.toContain('"type":"Client"')
+  // The two limits, ctx and the cache; the cost has no detail.
+  expect(count(vscode!, '"type":"Button"')).toBe(4)
+  expect(vscode).toContain('"label":"5h"')
+  expect(vscode).toContain('"label":"ctx"')
+  // The figures stay outside the buttons, in their colors, so a native button cannot hide them.
   expect(vscode).toContain(GREEN_BAR)
+  expect(vscode).toContain('"color":"#ff8700"')
+})
+
+test('on vscode a press on the name swaps a segment for its detail, and the next one back', async ($, on) => {
+  on('settings.read', async () => ({ value: { language: 'es' } as Settings }))
+  on('session.usage', async () => ({ value: USAGE }))
+  on('clock.now', async () => ({ value: START }))
+  on('session.measure', async (_, e) => ({ changed: e.changed }))
+  const { rateLimits, cost } = USAGE
+  await $.session.measure({ context: { window: WINDOW, percent: 23 }, rateLimits, cost, changed: ['cost'] })
+
+  const ui = await $.ui.mount({
+    plugin: 'plan-band',
+    surface: 'vscode',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 40, bodyColumns: 120, scroll: { offset: 0, bodyRows: 40 }, view: {} }
+  })
+  expect(JSON.stringify(await ui.drawn())).toContain('"2h14m"')
+
+  await ui.press({ key: 'limit:five_hour' })
+  const detail = JSON.stringify(await ui.drawn())
+  expect(detail).toContain('{"type":"Text","props":{"color":"green"},"children":["72%"]}')
+  expect(detail).not.toContain('"2h14m"')
+
+  await ui.press({ key: 'limit:five_hour' })
+  expect(JSON.stringify(await ui.drawn())).toContain('"2h14m"')
 })
 
 test('on the desktop a click swaps a segment for its detail, in the band colors, and the next one back', async ($, on) => {

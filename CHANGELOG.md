@@ -2,6 +2,10 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.8.0 (2026-10-19)
+
+- **VS Code has the click.** In the extension the name of each segment (`5h`, `7d`, `ctx`, `cache`) is a button: a click on it swaps the segment's figures for its detail, and a second click brings them back. The bar and the figures stay outside the button, in their colors, so the native button cannot hide them. The terminal and the desktop app are drawn as before.
+
 ## 1.7.0 (2026-10-18)
 
 - **The desktop app has the click.** As in a terminal, a click on a segment swaps its figures for its detail, in the band's colors, and a second click brings them back. The hover card of 1.6.1 is gone: on the desktop its text did not read on its background.
