@@ -38,6 +38,9 @@ export type Strings = {
   wrote: string
   fresh: string
   tokens: string
+  // A limit's ETA: `ETA in 45m` when it runs out at the pace so far, `ETA lasts` when it holds until it resets.
+  etaIn: string
+  etaOk: string
   // The limit kinds with a name of their own. A window is named from its kind
   // (`five_hour` is 5h, `seven_day` 7d), and anything else shows its kind.
   kinds: Record<string, string>
@@ -45,7 +48,7 @@ export type Strings = {
 
 declare module 'claude-code' {
   interface PluginState {
-    // `open`: the keys of the segments showing their detail (`ctx`, `cache`, `limit:<kind>`).
-    'plan-band': { usage: Usage; open: string[] }
+    // `open`: the presses of each segment (`ctx`, `cache`, `limit:<kind>`); the band maps the count to the form shown.
+    'plan-band': { usage: Usage; open: Record<string, number> }
   }
 }

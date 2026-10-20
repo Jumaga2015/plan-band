@@ -7,5 +7,7 @@ export const pt: Strings = {
   wrote: 'escrito',
   fresh: 'novo',
   tokens: 'tokens',
+  etaIn: 'em',
+  etaOk: 'dura',
   kinds: { spend_limit: 'Gasto' }
 }

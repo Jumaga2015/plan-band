@@ -75,11 +75,17 @@ test('each limit swaps its figures for its reset on its own press', async ($, on
   expect(text).not.toContain('"display":"none"')
 })
 
-test('a second press brings the figures back', async ($, on) => {
+test('a second press shows the ETA and a third brings the figures back', async ($, on) => {
   const { ui } = await band($, on, 'es', ['five_hour'])
   await ui.press({ key: 'limit:five_hour' })
+  const eta = JSON.stringify(await ui.drawn())
+  expect(eta).not.toContain('hoy 10:14')
+  expect(eta).not.toContain('"→","2h14m"')
+  expect(eta).toContain('"ETA "')
+
+  await ui.press({ key: 'limit:five_hour' })
   const text = JSON.stringify(await ui.drawn())
-  expect(text).not.toContain('hoy 10:14')
+  expect(text).not.toContain('"ETA "')
   expect(text).toContain('"→","2h14m"')
 })
 

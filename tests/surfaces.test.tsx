@@ -120,7 +120,7 @@ test('vscode, with no Client, makes only the name of each segment with a detail 
   expect(vscode).toContain('"color":"#ff8700"')
 })
 
-test('on vscode a press on the name swaps a segment for its detail, and the next one back', async ($, on) => {
+test('on vscode a press on the name swaps a segment for its detail, then its ETA, and the next one back', async ($, on) => {
   on('settings.read', async () => ({ value: { language: 'es' } as Settings }))
   on('session.usage', async () => ({ value: USAGE }))
   on('clock.now', async () => ({ value: START }))
@@ -142,10 +142,15 @@ test('on vscode a press on the name swaps a segment for its detail, and the next
   expect(detail).not.toContain('"2h14m"')
 
   await ui.press({ key: 'limit:five_hour' })
+  const eta = JSON.stringify(await ui.drawn())
+  expect(eta).toContain('"ETA "')
+  expect(eta).not.toContain('"2h14m"')
+
+  await ui.press({ key: 'limit:five_hour' })
   expect(JSON.stringify(await ui.drawn())).toContain('"2h14m"')
 })
 
-test('on the desktop a click swaps a segment for its detail, in the band colors, and the next one back', async ($, on) => {
+test('on the desktop a click swaps a segment for its detail, in the band colors, then its ETA, and the next one back', async ($, on) => {
   on('settings.read', async () => ({ value: { language: 'es' } as Settings }))
   on('session.usage', async () => ({ value: USAGE }))
   on('clock.now', async () => ({ value: START }))
@@ -171,6 +176,8 @@ test('on the desktop a click swaps a segment for its detail, in the band colors,
   expect(detail).toContain('{"type":"Text","props":{"dimColor":true},"children":["5h "]}')
   expect(detail).toContain('{"type":"Text","props":{"color":"green"},"children":["72%"]}')
   expect(detail).not.toContain('2h14m')
+  await click()
+  expect(await segment()).toContain('ETA ')
   await click()
   expect(await segment()).toContain('2h14m')
 })

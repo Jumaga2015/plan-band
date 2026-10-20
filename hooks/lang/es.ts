@@ -8,5 +8,7 @@ export const es: Strings = {
   wrote: 'escrito',
   fresh: 'nuevo',
   tokens: 'tokens',
+  etaIn: 'en',
+  etaOk: 'alcanza',
   kinds: { spend_limit: 'Gasto' }
 }

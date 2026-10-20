@@ -7,5 +7,7 @@ export const en: Strings = {
   wrote: 'written',
   fresh: 'new',
   tokens: 'tokens',
+  etaIn: 'in',
+  etaOk: 'lasts',
   kinds: { spend_limit: 'Spend' }
 }

@@ -2,6 +2,10 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.9.0 (2026-10-20)
+
+- **The ETA of a limit.** A click on a limit now goes through three forms: its figures, its detail, and its ETA at the pace used so far, `5h ETA in 45m` in red when it would run out before it resets, `5h ETA lasts` in green when it holds; the next click brings the figures back. The ETA shows once 5% of the window has passed, and only for a limit with a window. `ctx` and `cache` keep their two forms. In a terminal, the desktop app and VS Code.
+
 ## 1.8.0 (2026-10-19)
 
 - **VS Code has the click.** In the extension the name of each segment (`5h`, `7d`, `ctx`, `cache`) is a button: a click on it swaps the segment's figures for its detail, and a second click brings them back. The bar and the figures stay outside the button, in their colors, so the native button cannot hide them. The terminal and the desktop app are drawn as before.

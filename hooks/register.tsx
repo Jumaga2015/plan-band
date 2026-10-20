@@ -7,12 +7,14 @@ import type { Lang } from './lang/index'
 
 const usage = atom({ plugin: 'plan-band', key: 'usage' } as const, { limits: [] } as Usage)
 
-// The segments a press has swapped for their detail, by their key.
-const open = atom({ plugin: 'plan-band', key: 'open' } as const, [] as string[])
+// The presses each segment has had, by its key.
+const open = atom({ plugin: 'plan-band', key: 'open' } as const, {} as Record<string, number>)
 
-// A press swaps a segment's figures for its detail, and the next one back.
+// A press moves a segment on to its next form: its figures, its detail and, for
+// a limit that has one, its ETA, and then the figures again. The band works out
+// which form the count stands for, as the segment's forms vary with the data.
 const toggle = ($: Parameters<typeof update>[0], key: string) =>
-  update($, open, keys => (keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key]))
+  update($, open, counts => ({ ...counts, [key]: (counts[key] ?? 0) + 1 }))
 
 const NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -21,11 +23,24 @@ const NUMBERS: Record<string, number> = {
 
 const UNITS: Record<string, string> = { minute: 'm', hour: 'h', day: 'd', week: 'w' }
 
+const UNIT_MINUTES: Record<string, number> = { minute: 1, hour: 60, day: 1440, week: 10080 }
+
 // A window's kind as `<count>_<unit>`, in words or digits: `five_hour` is 5h, `30_day` 30d.
-const windowLabel = (kind: string) => {
+const parseWindow = (kind: string) => {
   const m = /^([a-z]+|\d+)_(minute|hour|day|week)s?$/.exec(kind)
   const n = m ? (NUMBERS[m[1]!] ?? (/^\d+$/.test(m[1]!) ? Number(m[1]) : undefined)) : undefined
-  return m && n ? `${n}${UNITS[m[2]!]}` : undefined
+  return m && n ? { n, unit: m[2]! } : undefined
+}
+
+const windowLabel = (kind: string) => {
+  const w = parseWindow(kind)
+  return w ? `${w.n}${UNITS[w.unit]}` : undefined
+}
+
+// How long a window lasts, in minutes; undefined for a kind that is not a window.
+const windowMinutes = (kind: string) => {
+  const w = parseWindow(kind)
+  return w ? w.n * UNIT_MINUTES[w.unit]! : undefined
 }
 
 const kindLabel = (kind: string, lang: Lang) =>
@@ -75,6 +90,23 @@ const span = (mins: number) => {
 const until = (iso: string | undefined, now: number) =>
   iso ? span(Math.max(0, Math.round((Date.parse(iso) - now) / MINUTE))) : ''
 
+// Too early in a window to tell its pace: under this share of it has passed.
+const PACE_FROM = 0.05
+
+// The ETA of a limit: the minutes until it runs out at the pace it has used so
+// far, null when it would last until it resets, and undefined when there is no
+// window to go on or too little of it has passed.
+const runsOutIn = (l: PlanLimit, now: number) => {
+  const length = windowMinutes(l.kind)
+  if (!length || !l.resetsAt || l.percentUsed >= 100) return undefined
+  const left = (Date.parse(l.resetsAt) - now) / MINUTE
+  const elapsed = length - left
+  if (left <= 0 || elapsed < length * PACE_FROM) return undefined
+  if (l.percentUsed <= 0) return null
+  const mins = Math.round(((100 - l.percentUsed) * elapsed) / l.percentUsed)
+  return mins < left ? mins : null
+}
+
 // Local midnight of a time, in whole days, to tell today and tomorrow apart.
 const dayOf = (d: Date) => Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000)
 
@@ -116,7 +148,8 @@ type Section = 'limits' | 'cost' | 'ctx' | 'cache'
 // The plugin option that shows or hides each section.
 const SHOW: Record<Section, string> = { limits: 'showLimits', cost: 'showCost', ctx: 'showCtx', cache: 'showCache' }
 
-// A segment of the band in the forms it is drawn: whole, short, and its detail.
+// A segment of the band in the forms it is drawn: whole, short, its detail and,
+// for a limit with a window, its ETA.
 // Each form lists what follows the segment's name, so a surface can draw the
 // name apart (VS Code makes it the button); the cost has no name, and `lead`
 // is the name as it is drawn before the figures.
@@ -128,9 +161,13 @@ type Part = {
   full: RenderNode[]
   short: RenderNode[]
   detail?: RenderNode[]
+  eta?: RenderNode[]
 }
 
 const nodes = (...nodes: (RenderNode | null)[]) => nodes.filter((n): n is RenderNode => n !== null)
+
+// The forms a segment has beyond its figures, those it has.
+const nodesOf = (...forms: (RenderNode[] | undefined)[]) => forms.filter((f): f is RenderNode[] => f !== undefined)
 
 // When the band does not fit its width it gives way one level at a time: level
 // 1 drops the cost; level 2 draws every segment short, name and bar with no
@@ -288,6 +325,7 @@ export const register: Register = (on, options) => {
         const color = toneFree(free)
         const name = kindLabel(l.kind, lang)
         const reset = until(l.resetsAt, now)
+        const pace = runsOutIn(l, now)
         const head = <Text color={color}>{bar(free)}</Text>
         parts.push({
           section: 'limits',
@@ -299,7 +337,10 @@ export const register: Register = (on, options) => {
           detail: nodes(
             figure(`${free}%`, color),
             l.resetsAt ? word(` →${resetDate(Date.parse(l.resetsAt), now, lang)}`) : null
-          )
+          ),
+          eta: pace === undefined
+            ? undefined
+            : [word(`ETA `), pace === null ? figure(labels.etaOk, 'green') : <Text>{[word(`${labels.etaIn} `), figure(span(pace), 'red')]}</Text>]
         })
       }
     }
@@ -374,8 +415,12 @@ export const register: Register = (on, options) => {
     const terminal = e.surface === 'terminal'
     const vscode = e.surface === 'vscode'
     const pressable = terminal || vscode || e.surface === 'desktop'
-    const opened = (p: Part) => pressable && p.detail !== undefined && shown.includes(p.key)
-    const form = (p: Part, level: number) => (opened(p) ? p.detail! : level >= SHORT_FROM ? p.short : p.full)
+    // The forms a press shows after the figures: the detail, then the ETA.
+    const extras = (p: Part) => (pressable ? nodesOf(p.detail, p.eta) : [])
+    const stage = (p: Part) => (shown[p.key] ?? 0) % (extras(p).length + 1)
+    const opened = (p: Part) => stage(p) > 0
+    const form = (p: Part, level: number) =>
+      opened(p) ? extras(p)[stage(p) - 1]! : level >= SHORT_FROM ? p.short : p.full
     // A segment as one run of text: its name, dimmed, and then its form.
     const whole = (p: Part, rest: RenderNode[]) =>
       p.name === undefined ? rest[0]! : <Text>{[opened(p) ? word(`${p.name} `) : p.lead!, ...rest]}</Text>

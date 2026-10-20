@@ -7,5 +7,7 @@ export const it: Strings = {
   wrote: 'scritto',
   fresh: 'nuovo',
   tokens: 'token',
+  etaIn: 'tra',
+  etaOk: 'basta',
   kinds: { spend_limit: 'Spesa' }
 }
