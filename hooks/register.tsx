@@ -111,16 +111,27 @@ const runsOutIn = (l: PlanLimit, now: number) => {
 const dayOf = (d: Date) => Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000)
 
 // A local time as Intl writes it in the language, without its commas, periods
-// and `de`, to keep it short: `mar 20 oct 16:00`, `Tue Oct 20 4:00 PM`.
+// and `de`, to keep it short: `mar 20 oct 16:00`, `Tue Oct 20 16:00`. The hour
+// loses the zero English writes before it on a 24-hour clock (`01:30`), as the
+// other languages write it (`1:30`).
 const local = (d: Date, lang: Lang, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(lang, options)
     .formatToParts(d)
-    .map(p => (p.type !== 'literal' ? p.value.replace(/\.$/, '') : p.value.includes(':') ? ':' : p.value.replace(/[,.]|\bde\b/g, ' ')))
+    .map(p =>
+      p.type === 'hour'
+        ? p.value.replace(/^0(?=\d)/, '')
+        : p.type !== 'literal'
+          ? p.value.replace(/\.$/, '')
+          : p.value.includes(':')
+            ? ':'
+            : p.value.replace(/[,.]|\bde\b/g, ' ')
+    )
     .join('')
     .replace(/\s+/g, ' ')
     .trim()
 
-const TIME = { hour: 'numeric', minute: '2-digit' } as const
+// Every language on a 24-hour clock, with no AM or PM to widen the detail.
+const TIME = { hour: 'numeric', minute: '2-digit', hourCycle: 'h23' } as const
 
 // When a limit resets, in local time: `hoy 10:14`, `mañana 1:30`, or `mar 20 oct 16:00`.
 const resetDate = (at: number, now: number, lang: Lang) => {

@@ -107,10 +107,21 @@ test('a reset after midnight shows tomorrow', async ($, on) => {
   expect(text).toContain(item('5h', 'mañana 1:30', GREEN))
 })
 
-test('English uses its own date order and a 12-hour clock', async ($, on) => {
+test('English uses its own date order, on a 24-hour clock', async ($, on) => {
   const { text } = await band($, on, 'en', ['five_hour', 'seven_day'])
-  expect(text).toContain(item('5h', 'today 10:14 AM', GREEN))
-  expect(text).toContain(item('7d', 'Tue Oct 20 4:00 PM', ORANGE))
+  expect(text).toContain(item('5h', 'today 10:14', GREEN))
+  expect(text).toContain(item('7d', 'Tue Oct 20 16:00', ORANGE))
+  expect(text).not.toMatch(/AM|PM/)
+})
+
+test('English writes an hour before ten with no leading zero', async ($, on) => {
+  const { text } = await band($, on, 'en', ['five_hour'], local(18, 1, 30))
+  expect(text).toContain(item('5h', 'tomorrow 1:30', GREEN))
+})
+
+test('a reset at midnight shows the hour as 0', async ($, on) => {
+  const { text } = await band($, on, 'en', ['five_hour'], local(18, 0, 30))
+  expect(text).toContain(item('5h', 'tomorrow 0:30', GREEN))
 })
 
 test('the date drops the commas and periods Intl writes', async ($, on) => {
