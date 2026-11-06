@@ -2,6 +2,10 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.10.2 (2026-11-06)
+
+- **Bigger marks.** The bar is drawn as `■` free and `□` used instead of `▪ ▫`, which were half their size: `5h ■■■■□→2h14m`. Consolas and Cascadia Mono have them, so the band still shows in the classic Windows console (`cmd`), and it is as wide as before.
+
 ## 1.10.1 (2026-11-06)
 
 - **A 24-hour clock in every language.** The time a limit resets is written without AM or PM in English too, as the other languages already wrote it: `today 10:14`, `Tue Oct 20 16:00`, `tomorrow 1:30`. The detail of a limit is three cells narrower in English.

@@ -24,7 +24,7 @@ const USAGE: SessionUsage = {
 } as SessionUsage
 
 // The band as the Spanish tests draw it, one line of 74 cells:
-//   5h ▪▪▪▪▫→2h14m · 7d ▪▪▫▫▫→3d6h · $0.42 · ctx ▪▪▪▪▫→154k · caché ▪▪▪▪▪→1h0m
+//   5h ■■■■□→2h14m · 7d ■■□□□→3d6h · $0.42 · ctx ■■■■□→154k · caché ■■■■■→1h0m
 // The cost goes first (66 cells); then the segments lose their figure one by
 // one: the cache (61), ctx (56), the 7-day limit (51) and the 5-hour one, which
 // leaves every segment short (45); then the cache goes (31) and the context (19).
@@ -131,7 +131,7 @@ test('the segments lose their figure after the arrow, keeping name and bar', asy
   expect(has.cost(text)).toBe(false)
   expect(has.ctx(text) && has.cache(text) && has.limits(text)).toBe(true)
   expect(has.arrows(text)).toBe(false)
-  expect(text).toContain('"▪▪▪▪▫"')
+  expect(text).toContain('"■■■■□"')
 })
 
 test('the short band fits down to its own width', async ($, on) => {

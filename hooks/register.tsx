@@ -69,7 +69,7 @@ const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n)))
 
 const bar = (filled: number) => {
   const n = Math.round((clamp(filled) / 100) * BAR)
-  return '▪'.repeat(n) + '▫'.repeat(BAR - n)
+  return '■'.repeat(n) + '□'.repeat(BAR - n)
 }
 
 // Orange as a raw color (xterm 208): terminals with fewer colors draw the nearest.
