@@ -60,20 +60,20 @@ test('ctx counts the tokens left up to auto-compaction', async ($, on) => {
   // Compaction at 100k: 54k left, 54% of the way free.
   const text = await band($, on, { isAutoCompactEnabled: true, autoCompactThreshold: 100000 })
   expect(text).toContain('"→54k"')
-  expect(text).toContain(bar('green', '▰▰▱▱'))
+  expect(text).toContain(bar('green', '▪▪▪▫▫'))
 })
 
 test('ctx turns orange by the share of the way to compaction already used', async ($, on) => {
   // Compaction at 60k: 14k left, 77% of the way used.
   const text = await band($, on, { isAutoCompactEnabled: true, autoCompactThreshold: 60000 })
   expect(text).toContain('"→14k"')
-  expect(text).toContain(bar('#ff8700', '▰▱▱▱'))
+  expect(text).toContain(bar('#ff8700', '▪▫▫▫▫'))
 })
 
 test('ctx counts up to the full window when auto-compaction is off', async ($, on) => {
   const text = await band($, on, { isAutoCompactEnabled: false, autoCompactThreshold: 100000 })
   expect(text).toContain('"→154k"')
-  expect(text).toContain(bar('green', '▰▰▰▱'))
+  expect(text).toContain(bar('green', '▪▪▪▪▫'))
 })
 
 test('the detail of ctx keeps the share of the window in use', async ($, on) => {

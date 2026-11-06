@@ -2,6 +2,11 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.10.0 (2026-11-06)
+
+- **A bar of five marks.** Each bar has five marks instead of four, a fifth (20%) each, drawn as `▪` free and `▫` used instead of `▰ ▱`: `5h ▪▪▪▪▫→2h14m`. Consolas has these characters, so the band now shows in the classic Windows console (`cmd`) with its default font. The band is four cells wider.
+- **The band gives way one figure at a time.** When it does not fit, the cost still goes first; then the segments lose the figure after their arrow one by one, the cache first, then `ctx`, then the limits from the last to the first, instead of all at once. The limits keep their countdown on a band that would have lost it before. Then the cache goes, and then `ctx`, as before.
+
 ## 1.9.0 (2026-10-20)
 
 - **The ETA of a limit.** A click on a limit now goes through three forms: its figures, its detail, and its ETA at the pace used so far, `5h ETA in 45m` in red when it would run out before it resets, `5h ETA lasts` in green when it holds; the next click brings the figures back. The ETA shows once 5% of the window has passed, and only for a limit with a window. `ctx` and `cache` keep their two forms. In a terminal, the desktop app and VS Code.

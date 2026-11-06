@@ -60,7 +60,7 @@ const ORANGE = '#ff8700'
 
 test('a limit shows its bar and countdown, with no percentage', async ($, on) => {
   const { text } = await band($, on, 'es', [])
-  expect(text).toContain('{"type":"Text","props":{"color":"green"},"children":["▰▰▰▱"]}')
+  expect(text).toContain('{"type":"Text","props":{"color":"green"},"children":["▪▪▪▪▫"]}')
   expect(text).toContain('"→","2h14m"')
   expect(text).not.toContain('72%')
 })

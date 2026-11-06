@@ -23,15 +23,19 @@ const USAGE: SessionUsage = {
   cost: { usd: 0.42 }
 } as SessionUsage
 
-// The band as the Spanish tests draw it, one line of 70 cells:
-//   5h ▰▰▰▱→2h14m · 7d ▰▰▱▱→3d6h · $0.42 · ctx ▰▰▰▱→154k · caché ▰▰▰▰→1h0m
-// Level 1 drops the cost (62 cells), level 2 draws every segment short (41),
-// level 3 drops the cache (28) and level 4 the context (17).
-const WHOLE = 70
-const NO_COST = 62
-const SHORT = 41
-const NO_CACHE = 28
-const LIMITS = 17
+// The band as the Spanish tests draw it, one line of 74 cells:
+//   5h ▪▪▪▪▫→2h14m · 7d ▪▪▫▫▫→3d6h · $0.42 · ctx ▪▪▪▪▫→154k · caché ▪▪▪▪▪→1h0m
+// The cost goes first (66 cells); then the segments lose their figure one by
+// one: the cache (61), ctx (56), the 7-day limit (51) and the 5-hour one, which
+// leaves every segment short (45); then the cache goes (31) and the context (19).
+const WHOLE = 74
+const NO_COST = 66
+const CACHE_SHORT = 61
+const CTX_SHORT = 56
+const SEVEN_SHORT = 51
+const SHORT = 45
+const NO_CACHE = 31
+const LIMITS = 19
 
 // Measures a response at START, then draws the band `columns` wide. The
 // segments pressed first show their detail.
@@ -92,12 +96,42 @@ test('the cost is the first to go', async ($, on) => {
   expect(text).toContain('"→1h0m"')
 })
 
+// Each step holds from just under the width of the one before down to its own.
+for (const columns of [NO_COST - 1, CACHE_SHORT]) {
+  test(`the cache loses its figure first, and the others keep theirs (${columns} cells)`, async ($, on) => {
+    const { text } = await band($, on, columns)
+    expect(has.cost(text)).toBe(false)
+    expect(has.ctx(text) && has.cache(text) && has.limits(text)).toBe(true)
+    expect(text).not.toContain('"→1h0m"')
+    expect(text).toContain('"→154k"')
+    expect(text).toContain('"→","3d6h"')
+    expect(text).toContain('"→","2h14m"')
+  })
+}
+
+for (const columns of [CACHE_SHORT - 1, CTX_SHORT]) {
+  test(`ctx loses its figure next, and the limits keep theirs (${columns} cells)`, async ($, on) => {
+    const { text } = await band($, on, columns)
+    expect(text).not.toContain('"→154k"')
+    expect(text).toContain('"→","3d6h"')
+    expect(text).toContain('"→","2h14m"')
+  })
+}
+
+for (const columns of [CTX_SHORT - 1, SEVEN_SHORT]) {
+  test(`the limits lose their figure from the last to the first (${columns} cells)`, async ($, on) => {
+    const { text } = await band($, on, columns)
+    expect(text).not.toContain('"→","3d6h"')
+    expect(text).toContain('"→","2h14m"')
+  })
+}
+
 test('the segments lose their figure after the arrow, keeping name and bar', async ($, on) => {
-  const { text } = await band($, on, NO_COST - 1)
+  const { text } = await band($, on, SEVEN_SHORT - 1)
   expect(has.cost(text)).toBe(false)
   expect(has.ctx(text) && has.cache(text) && has.limits(text)).toBe(true)
   expect(has.arrows(text)).toBe(false)
-  expect(text).toContain('"▰▰▰▱"')
+  expect(text).toContain('"▪▪▪▪▫"')
 })
 
 test('the short band fits down to its own width', async ($, on) => {

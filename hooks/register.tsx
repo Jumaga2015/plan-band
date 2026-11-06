@@ -61,7 +61,7 @@ const short = (name: string) => {
   return SHORT[n] ?? n.split(' ')[0] ?? n
 }
 
-const BAR = 4
+const BAR = 5
 const ROWS = 4
 const MINUTE = 60000
 
@@ -69,7 +69,7 @@ const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n)))
 
 const bar = (filled: number) => {
   const n = Math.round((clamp(filled) / 100) * BAR)
-  return '▰'.repeat(n) + '▱'.repeat(BAR - n)
+  return '▪'.repeat(n) + '▫'.repeat(BAR - n)
 }
 
 // Orange as a raw color (xterm 208): terminals with fewer colors draw the nearest.
@@ -169,13 +169,21 @@ const nodes = (...nodes: (RenderNode | null)[]) => nodes.filter((n): n is Render
 // The forms a segment has beyond its figures, those it has.
 const nodesOf = (...forms: (RenderNode[] | undefined)[]) => forms.filter((f): f is RenderNode[] => f !== undefined)
 
-// When the band does not fit its width it gives way one level at a time: level
-// 1 drops the cost; level 2 draws every segment short, name and bar with no
-// figure after them; level 3 drops the cache and level 4 the context. The
-// limits never give way.
-const GIVES_WAY: Record<Section, number> = { limits: Infinity, cost: 1, cache: 3, ctx: 4 }
-const GIVES_WAY_LAST = 4
-const SHORT_FROM = 2
+// When the band does not fit its width it gives way one step at a time: first
+// the cost goes; then the segments are drawn short (name and bar, with no
+// figure after them) one by one, the cache first, then ctx, then the limits
+// from the last to the first; then the cache goes, and then the context. The
+// limits never go.
+type Step = { drop: Section } | { short: string }
+const givesWay = (parts: Part[]): Step[] => {
+  const keys = (section: Section) => parts.filter(p => p.section === section).map(p => p.key)
+  return [
+    { drop: 'cost' },
+    ...[...keys('cache'), ...keys('ctx'), ...keys('limits').reverse()].map((key): Step => ({ short: key })),
+    { drop: 'cache' },
+    { drop: 'ctx' }
+  ]
+}
 
 // The cells a drawn node takes on a line: the length of its text.
 const cells = (node: RenderNode): number =>
@@ -409,7 +417,7 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
-    // The band fits its width by giving way, level by level (see GIVES_WAY).
+    // The band fits its width by giving way, step by step (see givesWay).
     // A segment showing its detail is the person's choice: it stays. The click
     // is the terminal's, the desktop's and VS Code's; elsewhere the band has no detail.
     const terminal = e.surface === 'terminal'
@@ -419,17 +427,20 @@ export const register: Register = (on, options) => {
     const extras = (p: Part) => (pressable ? nodesOf(p.detail, p.eta) : [])
     const stage = (p: Part) => (shown[p.key] ?? 0) % (extras(p).length + 1)
     const opened = (p: Part) => stage(p) > 0
+    // The steps taken at a level: the first `level` of them.
+    const steps = givesWay(parts)
+    const taken = (level: number, step: (s: Step) => boolean) => steps.slice(0, level).some(step)
     const form = (p: Part, level: number) =>
-      opened(p) ? extras(p)[stage(p) - 1]! : level >= SHORT_FROM ? p.short : p.full
+      opened(p) ? extras(p)[stage(p) - 1]! : taken(level, s => 'short' in s && s.short === p.key) ? p.short : p.full
     // A segment as one run of text: its name, dimmed, and then its form.
     const whole = (p: Part, rest: RenderNode[]) =>
       p.name === undefined ? rest[0]! : <Text>{[opened(p) ? word(`${p.name} `) : p.lead!, ...rest]}</Text>
-    const drawn = (level: number) => parts.filter(p => opened(p) || level < GIVES_WAY[p.section])
+    const drawn = (level: number) => parts.filter(p => opened(p) || !taken(level, s => 'drop' in s && s.drop === p.section))
     const width = (level: number) =>
       drawn(level).reduce((n, p, i) => n + cells(whole(p, form(p, level))) + (i > 0 ? cells(sep) : 0), 0)
 
     let level = 0
-    while (level < GIVES_WAY_LAST && width(level) > e.props.bodyColumns) {
+    while (level < steps.length && width(level) > e.props.bodyColumns) {
       level++
     }
 

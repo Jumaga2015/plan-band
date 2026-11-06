@@ -55,7 +55,7 @@ const bands = async ($: Engine, on: On) => {
 const count = (text: string, part: string) => text.split(part).length - 1
 
 // ctx's bar and the 5-hour limit's, as drawn: their color, then their marks.
-const GREEN_BAR = '{"type":"Text","props":{"color":"green"},"children":["▰▰▰▱"]}'
+const GREEN_BAR = '{"type":"Text","props":{"color":"green"},"children":["▪▪▪▪▫"]}'
 
 test('the terminal draws a button for each segment with a detail, and no card', async ($, on) => {
   const { terminal } = await bands($, on)
