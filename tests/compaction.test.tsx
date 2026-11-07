@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { bar } from './bar'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionContextBreakdown, SessionUsage, Settings } from 'claude-code'
 
@@ -52,9 +53,6 @@ const band = async ($: Engine, on: On, compaction: Parameters<typeof breakdown>[
   }
   return JSON.stringify(await ui.drawn())
 }
-
-// ctx's bar as drawn: its color, then its marks.
-const bar = (color: string, marks: string) => `{"type":"Text","props":{"color":"${color}"},"children":["${marks}"]}`
 
 test('ctx counts the tokens left up to auto-compaction', async ($, on) => {
   // Compaction at 100k: 54k left, 54% of the way free.

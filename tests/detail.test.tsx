@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { bar } from './bar'
 import type { Engine } from 'claude-code/testing'
 import type { On, PluginOptions, SessionContextBreakdown, SessionUsage, Settings } from 'claude-code'
 
@@ -66,7 +67,7 @@ const draw = async ($: Engine, on: On, hasBreakdown: boolean, minutes: number, t
 const ttl = (cacheTtl: string): { options: PluginOptions } => ({ options: { cacheTtl } })
 
 // The cache's bar as drawn: the lifetime it has left, in the countdown's color.
-const lifetime = (color: string, bar: string) => `{"type":"Text","props":{"color":"${color}"},"children":["${bar}"]}`
+const lifetime = bar
 const FULL = lifetime('green', '■■■■■')
 
 test('the band shows the cache lifetime left and the time until it expires', async ($, on) => {
@@ -126,7 +127,7 @@ const CTX = [['msgs', '9%'], ['sys', '8%'], ['tools', '5%']]
 const CACHE = [['leído', '90k'], ['escrito', '4k'], ['nuevo', '1k']]
 
 // ctx's figures: 23% used, so a bar of 77% free and 154k of 200k tokens left.
-const CTX_BAR = '{"type":"Text","props":{"color":"green"},"children":["■■■■□"]}'
+const CTX_BAR = bar('green', '■■■■□')
 const CTX_USED = '"ctx "]},{"type":"Text","props":{"color":"green"},"children":["23%"]}'
 
 test('ctx shows a bar of what is free and the tokens left, with no percentage', async ($, on) => {

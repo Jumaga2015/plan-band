@@ -67,10 +67,8 @@ const MINUTE = 60000
 
 const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n)))
 
-const bar = (filled: number) => {
-  const n = Math.round((clamp(filled) / 100) * BAR)
-  return '■'.repeat(n) + '□'.repeat(BAR - n)
-}
+// The marks of a bar that are filled, out of BAR.
+const marks = (filled: number) => Math.round((clamp(filled) / 100) * BAR)
 
 // Orange as a raw color (xterm 208): terminals with fewer colors draw the nearest.
 const ORANGE = '#ff8700'
@@ -317,6 +315,20 @@ export const register: Register = (on, options) => {
     const word = (text: string) => <Text dimColor>{text}</Text>
     const figure = (text: string, color?: string) => <Text color={color}>{text}</Text>
 
+    // A bar: the same mark BAR times, the filled ones in the tone and the rest
+    // in the theme's inactive gray.
+    const bar = (filled: number, tone: string) => {
+      const n = marks(filled)
+      return (
+        <Text>
+          {nodes(
+            n > 0 ? <Text color={tone}>{'■'.repeat(n)}</Text> : null,
+            n < BAR ? <Text color="inactive">{'■'.repeat(BAR - n)}</Text> : null
+          )}
+        </Text>
+      )
+    }
+
     // A detail's items: each name and its value, and commas between them, not
     // the band's separator.
     const items = (list: Item[]) =>
@@ -345,7 +357,7 @@ export const register: Register = (on, options) => {
         const name = kindLabel(l.kind, lang)
         const reset = until(l.resetsAt, now)
         const pace = runsOutIn(l, now)
-        const head = <Text color={color}>{bar(free)}</Text>
+        const head = bar(free, color)
         parts.push({
           section: 'limits',
           key: `limit:${l.kind}`,
@@ -379,7 +391,7 @@ export const register: Register = (on, options) => {
       const left = contextLeft(u)
       const color = toneUsed(left ? 100 - left.percent : used)
       const top = window && rows ? [...rows].sort((a, b) => b.tokens - a.tokens).slice(0, ROWS) : []
-      const head = <Text color={color}>{bar(left ? left.percent : 100 - used)}</Text>
+      const head = bar(left ? left.percent : 100 - used, color)
       parts.push({
         section: 'ctx',
         key: 'ctx',
@@ -403,7 +415,7 @@ export const register: Register = (on, options) => {
       const left = Math.round((cache.at + ttl * MINUTE - now) / MINUTE)
       const tone = left > 0 ? toneLeft(left, ttl) : 'inactive'
       const hit = left > 0 ? toneFree(cache.hitPercent) : 'inactive'
-      const head = <Text color={tone}>{bar(left > 0 ? (left / ttl) * 100 : 0)}</Text>
+      const head = bar(left > 0 ? (left / ttl) * 100 : 0, tone)
       parts.push({
         section: 'cache',
         key: 'cache',

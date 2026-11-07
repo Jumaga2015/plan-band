@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { bar } from './bar'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionContextBreakdown, SessionUsage, Settings } from 'claude-code'
 
@@ -131,7 +132,7 @@ test('the segments lose their figure after the arrow, keeping name and bar', asy
   expect(has.cost(text)).toBe(false)
   expect(has.ctx(text) && has.cache(text) && has.limits(text)).toBe(true)
   expect(has.arrows(text)).toBe(false)
-  expect(text).toContain('"■■■■□"')
+  expect(text).toContain(bar('green', '■■■■□'))
 })
 
 test('the short band fits down to its own width', async ($, on) => {

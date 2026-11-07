@@ -2,6 +2,10 @@
 
 What each version of plan-band changes for the people who use it. Each version is tagged `plan-band--v<version>`.
 
+## 1.11.0 (2026-11-07)
+
+- **One mark, two colors.** The bar draws every mark as `■`: the free ones in the color of the state and the used ones in the gray of the theme, instead of `■` free and `□` used. The marks are all the same size and weight, whatever the font. Written without colors, `5h ■■■■□→2h14m` is the same bar as before.
+
 ## 1.10.2 (2026-11-06)
 
 - **Bigger marks.** The bar is drawn as `■` free and `□` used instead of `▪ ▫`, which were half their size: `5h ■■■■□→2h14m`. Consolas and Cascadia Mono have them, so the band still shows in the classic Windows console (`cmd`), and it is as wide as before.
